@@ -1,0 +1,347 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #1a1b26;
+  --surface: #24283b;
+  --surface-hover: #292e42;
+  --border: #3b4261;
+  --text: #c0caf5;
+  --text-muted: #565f89;
+  --text-bright: #ffffff;
+  --accent: #7aa2f7;
+  --accent-muted: #3d59a1;
+  --header-bg: #7aa2f7;
+  --header-text: #1a1b26;
+  --body-bg: #1f2335;
+  --key-color: #bb9af7;
+  --type-color: #2ac3de;
+  --name-color: #c0caf5;
+  --comment-color: #565f89;
+  --connector-color: #565f89;
+  --connector-label: #9aa5ce;
+  --error-bg: #f7768e;
+  --error-text: #1a1b26;
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  height: 44px;
+  padding: 0 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  user-select: none;
+  z-index: 10;
+}
+
+.toolbar-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-bright);
+  white-space: nowrap;
+}
+
+.toolbar-buttons {
+  display: flex;
+  gap: 4px;
+}
+
+.toolbar-buttons button {
+  padding: 4px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.toolbar-buttons button:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-muted);
+}
+
+.toolbar-buttons button:active {
+  background: var(--accent-muted);
+}
+
+.toolbar-shortcuts {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.toolbar-shortcuts kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  margin-right: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+#error-bar {
+  padding: 8px 16px;
+  background: var(--error-bg);
+  color: var(--error-text);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+#er-svg {
+  width: 100%;
+  height: calc(100vh - 44px);
+  display: block;
+  cursor: default;
+}
+
+/* Entity styles */
+.entity {
+  cursor: grab;
+}
+
+.entity.dragging {
+  cursor: grabbing;
+  opacity: 0.92;
+}
+
+.entity-header {
+  fill: var(--header-bg);
+}
+
+.entity-name {
+  fill: var(--header-text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.entity-label {
+  fill: var(--header-text);
+  font-family: 'Inter', sans-serif;
+  font-weight: 400;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.entity-body {
+  fill: var(--body-bg);
+}
+
+.entity-outline {
+  fill: none;
+  stroke: var(--border);
+  stroke-width: 1.5;
+}
+
+.entity:hover .entity-outline {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+.entity.dragging .entity-outline {
+  stroke: var(--accent);
+  stroke-width: 2;
+  filter: drop-shadow(0 4px 12px rgba(122, 162, 247, 0.3));
+}
+
+.attr-separator {
+  stroke: var(--border);
+  stroke-width: 0.5;
+}
+
+.attr-key {
+  fill: var(--key-color);
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 500;
+  font-size: 11px;
+}
+
+.attr-type {
+  fill: var(--type-color);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+.attr-name {
+  fill: var(--name-color);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+}
+
+.attr-comment {
+  fill: var(--comment-color);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-style: italic;
+}
+
+/* Connector styles */
+.connector-line {
+  fill: none;
+  stroke: var(--connector-color);
+  stroke-width: 1.5;
+}
+
+.connector-line.non-identifying {
+  stroke-dasharray: 8 4;
+}
+
+.connector-label {
+  fill: var(--connector-label);
+  font-family: 'Inter', sans-serif;
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* Cardinality styles */
+.cardinality .card-line {
+  stroke: var(--connector-color);
+  stroke-width: 1.5;
+}
+
+.cardinality .card-circle {
+  fill: var(--bg);
+  stroke: var(--connector-color);
+  stroke-width: 1.5;
+}
+
+/* Clickable text - cursor hint */
+.entity-name,
+.attr-name,
+.attr-type {
+  cursor: pointer;
+}
+
+.entity-name:hover {
+  fill: var(--text-bright);
+}
+
+.attr-name:hover {
+  fill: var(--accent);
+}
+
+.attr-type:hover {
+  fill: #5de5f5;
+}
+
+/* Toast notification */
+#toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  padding: 8px 20px;
+  background: var(--surface);
+  color: var(--text-bright);
+  border: 1px solid var(--accent-muted);
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s, transform 0.2s;
+  z-index: 100;
+}
+
+#toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Relationship highlight ── */
+
+/* When a selection is active, dim everything by default */
+#er-svg.has-selection .entity {
+  opacity: 0.2;
+  transition: opacity 0.2s;
+}
+
+#er-svg.has-selection .connector {
+  opacity: 0.08;
+  transition: opacity 0.2s;
+}
+
+/* Selected entity */
+#er-svg.has-selection .entity.hl-selected {
+  opacity: 1;
+}
+
+#er-svg.has-selection .entity.hl-selected .entity-outline {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  filter: drop-shadow(0 0 8px rgba(122, 162, 247, 0.5));
+}
+
+/* Direct relations (depth 1) */
+#er-svg.has-selection .entity.hl-depth-1 {
+  opacity: 1;
+}
+
+#er-svg.has-selection .entity.hl-depth-1 .entity-outline {
+  stroke: #9ece6a;
+  stroke-width: 2;
+}
+
+/* Depth 2 (grandchild/grandparent) */
+#er-svg.has-selection .entity.hl-depth-2 {
+  opacity: 1;
+}
+
+#er-svg.has-selection .entity.hl-depth-2 .entity-outline {
+  stroke: #e0af68;
+  stroke-width: 2;
+}
+
+/* Depth 3+ */
+#er-svg.has-selection .entity.hl-depth-far {
+  opacity: 0.85;
+}
+
+#er-svg.has-selection .entity.hl-depth-far .entity-outline {
+  stroke: #f7768e;
+  stroke-width: 1.5;
+}
+
+/* Related connectors */
+#er-svg.has-selection .connector.hl-connector {
+  opacity: 1;
+}
+
+#er-svg.has-selection .connector.hl-connector .connector-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+#er-svg.has-selection .connector.hl-connector .card-line {
+  stroke: var(--accent);
+}
+
+#er-svg.has-selection .connector.hl-connector .card-circle {
+  stroke: var(--accent);
+}

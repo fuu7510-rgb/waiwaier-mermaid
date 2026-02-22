@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid ER Viewer</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="toolbar">
+    <span class="toolbar-title">ER Diagram Viewer</span>
+    <div class="toolbar-buttons">
+      <button id="btn-zoom-in" title="Zoom In (+)">+</button>
+      <button id="btn-zoom-out" title="Zoom Out (-)">−</button>
+      <button id="btn-fit" title="Fit View (F)">Fit</button>
+      <button id="btn-auto-layout" title="Auto Layout (L)">Auto Layout</button>
+    </div>
+    <div class="toolbar-shortcuts">
+      <kbd>Scroll</kbd> Zoom
+      <kbd>Ctrl+Drag</kbd> Pan
+      <kbd>F</kbd> Fit
+      <kbd>L</kbd> Auto Layout
+      <kbd>Ctrl+0</kbd> Reset
+    </div>
+  </div>
+  <div id="error-bar" style="display: none;"></div>
+  <svg id="er-svg" xmlns="http://www.w3.org/2000/svg">
+    <g id="viewport"></g>
+  </svg>
+  <script type="module" src="main.js"></script>
+</body>
+</html>
