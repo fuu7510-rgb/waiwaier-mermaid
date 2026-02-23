@@ -49,6 +49,25 @@ html, body {
   z-index: 10;
 }
 
+.toolbar-back {
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.toolbar-back:hover {
+  background: var(--surface-hover);
+  border-color: var(--accent-muted);
+  color: var(--text);
+}
+
 .toolbar-title {
   font-weight: 600;
   font-size: 14px;

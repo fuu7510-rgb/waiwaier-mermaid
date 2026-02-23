@@ -26,9 +26,20 @@ const __dirname = __dirname_fn(__filename);
   },
 });
 
-// Build client
+// Build client (viewer)
 await esbuild.build({
   entryPoints: ['src/client/main.ts'],
+  bundle: true,
+  platform: 'browser',
+  target: 'es2022',
+  format: 'esm',
+  outdir: 'dist/client',
+  sourcemap: true,
+});
+
+// Build client (picker)
+await esbuild.build({
+  entryPoints: ['src/client/picker.ts'],
   bundle: true,
   platform: 'browser',
   target: 'es2022',
@@ -49,6 +60,14 @@ copyFileSync(
 copyFileSync(
   join(__dirname, 'src', 'client', 'styles.css'),
   join(clientDistDir, 'styles.css')
+);
+copyFileSync(
+  join(__dirname, 'src', 'client', 'picker.html'),
+  join(clientDistDir, 'picker.html')
+);
+copyFileSync(
+  join(__dirname, 'src', 'client', 'picker.css'),
+  join(clientDistDir, 'picker.css')
 );
 
 console.log('Build complete.');

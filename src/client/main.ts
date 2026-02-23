@@ -420,6 +420,14 @@ function setupToolbar(): void {
     zoom = Math.max(MIN_ZOOM, zoom / 1.2);
     updateViewportTransform();
   });
+  document.getElementById('btn-back')?.addEventListener('click', async () => {
+    try {
+      await fetch('/api/close', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    } catch {
+      // Ignore errors
+    }
+    window.location.href = '/';
+  });
 }
 
 function setupWebSocket(): void {
@@ -431,10 +439,28 @@ function setupWebSocket(): void {
     await loadAndRender();
   });
 
+  ws.on('file-closed', () => {
+    window.location.href = '/';
+  });
+
   ws.connect();
 }
 
 async function init(): Promise<void> {
+  // Check if a file is active; if not, redirect to picker
+  try {
+    const statusRes = await fetch('/api/status');
+    if (statusRes.ok) {
+      const status = await statusRes.json();
+      if (!status.hasActiveFile) {
+        window.location.href = '/';
+        return;
+      }
+    }
+  } catch {
+    // Continue anyway
+  }
+
   const svg = getSvg();
   const viewport = getViewportGroup();
 

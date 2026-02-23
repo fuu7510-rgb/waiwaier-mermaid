@@ -1,9 +1,11 @@
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
 import { existsSync } from 'fs';
 import { startServer } from './server.js';
 
 function printUsage(): void {
-  console.log('Usage: mermaid-er-viewer <file.mmd> [--port <number>]');
+  console.log('Usage: mermaid-er-viewer [file.mmd] [--port <number>]');
+  console.log('');
+  console.log('  If no file is specified, opens a file picker in the browser.');
   console.log('');
   console.log('Options:');
   console.log('  --port <number>  Port number (default: 3000)');
@@ -34,19 +36,21 @@ async function main() {
     }
   }
 
-  if (!filePath) {
-    console.error('Error: No .mmd file specified.');
-    printUsage();
-    process.exit(1);
+  let diagramPath: string | null = null;
+  let baseDir: string;
+
+  if (filePath) {
+    diagramPath = resolve(filePath);
+    if (!existsSync(diagramPath)) {
+      console.error(`Error: File not found: ${diagramPath}`);
+      process.exit(1);
+    }
+    baseDir = dirname(diagramPath);
+  } else {
+    baseDir = process.cwd();
   }
 
-  const absolutePath = resolve(filePath);
-  if (!existsSync(absolutePath)) {
-    console.error(`Error: File not found: ${absolutePath}`);
-    process.exit(1);
-  }
-
-  const { url } = await startServer({ diagramPath: absolutePath, port });
+  const { url } = await startServer({ diagramPath, baseDir, port });
 
   if (shouldOpen) {
     try {

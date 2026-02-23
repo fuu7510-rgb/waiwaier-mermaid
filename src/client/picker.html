@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mermaid ER Viewer - File Picker</title>
+  <link rel="stylesheet" href="picker.css">
+</head>
+<body>
+  <div class="picker-container">
+    <header class="picker-header">
+      <h1>Mermaid ER Viewer</h1>
+      <p class="picker-subtitle">Select a .mmd file to view its ER diagram</p>
+    </header>
+
+    <section id="recent-section" class="picker-section" style="display: none;">
+      <h2>Recent Files</h2>
+      <ul id="recent-list" class="file-list"></ul>
+    </section>
+
+    <section class="picker-section">
+      <h2>Browse Files</h2>
+      <nav id="breadcrumb" class="breadcrumb"></nav>
+      <div id="browse-list" class="file-list-container">
+        <ul id="dir-list" class="file-list"></ul>
+        <ul id="file-list" class="file-list"></ul>
+        <div id="empty-message" class="empty-message" style="display: none;">
+          No .mmd files found in this directory.
+        </div>
+      </div>
+    </section>
+  </div>
+  <script type="module" src="picker.js"></script>
+</body>
+</html>
