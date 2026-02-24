@@ -1,4 +1,4 @@
-import type { LayoutData, ERDiagramJSON } from '../parser/types.js';
+import type { LayoutData, ERDiagramJSON, Entity } from '../parser/types.js';
 
 const GRID_COLS = 4;
 const GRID_SPACING_X = 320;
@@ -13,6 +13,7 @@ const OFFSET_X = 100;
 const OFFSET_Y = 100;
 const BARYCENTER_ITERATIONS = 4;
 const COMPONENT_GAP_Y = 120;
+const APP_GROUP_GAP_Y = 200;
 
 /** Auto-layout entities that don't have positions yet */
 export function autoLayoutNewEntities(
@@ -47,9 +48,19 @@ export function autoLayoutNewEntities(
 }
 
 /** Estimate the rendered height of an entity box */
-function estimateEntityHeight(entity: { label: string; attributes: { name: string }[] }): number {
+function estimateEntityHeight(entity: Entity): number {
   const headerHeight = entity.label !== entity.name ? 44 : 32;
   return headerHeight + Math.max(entity.attributes.length * 24, 24);
+}
+
+/**
+ * Detect app prefix from entity name.
+ * Works with Django-style naming (appname_modelname) and similar conventions.
+ * Returns lowercase prefix, or '' if no underscore found.
+ */
+function detectAppPrefix(name: string): string {
+  const idx = name.indexOf('_');
+  return idx > 0 ? name.substring(0, idx).toLowerCase() : '';
 }
 
 /** Full auto-layout for all entities (Sugiyama-based hierarchical layout) */
@@ -118,41 +129,77 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
     if (color.get(name) === WHITE) dfsRemoveCycles(name);
   }
 
-  // --- Phase 2a: Find connected components (BFS on undirected graph) ---
-  const visited = new Set<string>();
-  const components: string[][] = [];
-  const isolated: string[] = [];
-
+  // --- Phase 2: Detect grouping strategy ---
+  // Check for Django-style app prefixes (e.g., auth_user, orders_order)
+  const appPrefixMap = new Map<string, string[]>();
   for (const name of entityNames) {
-    if (visited.has(name)) continue;
-
-    // Check if this entity has any relationships
-    if (neighbors.get(name)!.size === 0) {
-      isolated.push(name);
-      visited.add(name);
-      continue;
-    }
-
-    const component: string[] = [];
-    const queue = [name];
-    visited.add(name);
-    while (queue.length > 0) {
-      const curr = queue.shift()!;
-      component.push(curr);
-      for (const nb of neighbors.get(curr)!) {
-        if (!visited.has(nb)) {
-          visited.add(nb);
-          queue.push(nb);
-        }
-      }
-    }
-    components.push(component);
+    const prefix = detectAppPrefix(name);
+    if (!appPrefixMap.has(prefix)) appPrefixMap.set(prefix, []);
+    appPrefixMap.get(prefix)!.push(name);
   }
 
-  // Sort components: larger ones first
-  components.sort((a, b) => b.length - a.length);
+  // App grouping is useful if at least 2 prefixed groups have 2+ entities
+  const meaningfulAppGroups = [...appPrefixMap.entries()].filter(
+    ([prefix, entities]) => prefix !== '' && entities.length >= 2,
+  );
+  const useAppGrouping = meaningfulAppGroups.length >= 2;
 
-  // --- Phase 2b: Layer assignment per component (Kahn's algorithm) ---
+  // Build ordered list of entity groups
+  const topLevelGroups: string[][] = [];
+  if (useAppGrouping) {
+    // Sort by size (largest first)
+    const sorted = [...appPrefixMap.entries()]
+      .sort((a, b) => b[1].length - a[1].length);
+    for (const [, entities] of sorted) {
+      topLevelGroups.push(entities);
+    }
+  } else {
+    // Single group containing all entities
+    topLevelGroups.push(entityNames);
+  }
+
+  // --- Helper: find connected components within a subset of entities ---
+  function findComponents(entitySubset: string[]): { components: string[][]; isolated: string[] } {
+    const memberSet = new Set(entitySubset);
+    const vis = new Set<string>();
+    const comps: string[][] = [];
+    const iso: string[] = [];
+
+    for (const name of entitySubset) {
+      if (vis.has(name)) continue;
+
+      let hasNeighborInSet = false;
+      for (const nb of neighbors.get(name)!) {
+        if (memberSet.has(nb)) { hasNeighborInSet = true; break; }
+      }
+
+      if (!hasNeighborInSet) {
+        iso.push(name);
+        vis.add(name);
+        continue;
+      }
+
+      const comp: string[] = [];
+      const queue = [name];
+      vis.add(name);
+      while (queue.length > 0) {
+        const curr = queue.shift()!;
+        comp.push(curr);
+        for (const nb of neighbors.get(curr)!) {
+          if (memberSet.has(nb) && !vis.has(nb)) {
+            vis.add(nb);
+            queue.push(nb);
+          }
+        }
+      }
+      comps.push(comp);
+    }
+
+    comps.sort((a, b) => b.length - a.length);
+    return { components: comps, isolated: iso };
+  }
+
+  // --- Helper: layer assignment (Kahn's algorithm) ---
   type LayerMap = Map<string, number>;
 
   function assignLayers(component: string[]): LayerMap {
@@ -168,7 +215,6 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       inDegree.set(name, deg);
     }
 
-    // Start with roots (in-degree 0)
     const queue: string[] = [];
     for (const name of component) {
       if (inDegree.get(name) === 0) {
@@ -194,7 +240,6 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       }
     }
 
-    // Any unassigned nodes (only connected via 1:1 or M:N) → layer 0
     for (const name of component) {
       if (!layerOf.has(name)) layerOf.set(name, 0);
     }
@@ -202,12 +247,8 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
     return layerOf;
   }
 
-  // --- Phase 3: Barycenter ordering within layers ---
-  function orderLayers(
-    layerOf: LayerMap,
-    component: string[],
-  ): string[][] {
-    // Group entities by layer
+  // --- Helper: barycenter ordering ---
+  function orderLayers(layerOf: LayerMap, component: string[]): string[][] {
     let maxLayer = 0;
     for (const l of layerOf.values()) {
       if (l > maxLayer) maxLayer = l;
@@ -218,17 +259,14 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       layers[layerOf.get(name)!].push(name);
     }
 
-    // Barycenter heuristic sweeps
     for (let iter = 0; iter < BARYCENTER_ITERATIONS; iter++) {
       if (iter % 2 === 0) {
-        // Left to right sweep
         for (let l = 1; l <= maxLayer; l++) {
-          sortByBarycenter(layers[l], layers[l - 1], layerOf);
+          sortByBarycenter(layers[l], layers[l - 1]);
         }
       } else {
-        // Right to left sweep
         for (let l = maxLayer - 1; l >= 0; l--) {
-          sortByBarycenter(layers[l], layers[l + 1], layerOf);
+          sortByBarycenter(layers[l], layers[l + 1]);
         }
       }
     }
@@ -236,12 +274,7 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
     return layers;
   }
 
-  function sortByBarycenter(
-    layer: string[],
-    adjacentLayer: string[],
-    _layerOf: LayerMap,
-  ): void {
-    // Build position map for adjacent layer
+  function sortByBarycenter(layer: string[], adjacentLayer: string[]): void {
     const posMap = new Map<string, number>();
     adjacentLayer.forEach((name, i) => posMap.set(name, i));
 
@@ -263,35 +296,31 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
     layer.sort((a, b) => barycenters.get(a)! - barycenters.get(b)!);
   }
 
-  // --- Phase 4: Coordinate assignment ---
-  const positions: Record<string, { x: number; y: number }> = {};
-  let globalOffsetY = OFFSET_Y;
-
-  for (const component of components) {
+  // --- Helper: layout a single connected component, returns bottom Y ---
+  function layoutComponent(
+    component: string[],
+    startY: number,
+  ): number {
     const layerOf = assignLayers(component);
     const layers = orderLayers(layerOf, component);
 
-    // Calculate heights per layer
     const layerHeights: number[] = [];
     for (const layer of layers) {
       let totalHeight = 0;
       for (let i = 0; i < layer.length; i++) {
-        const entity = diagram.entities[layer[i]];
-        totalHeight += estimateEntityHeight(entity);
+        totalHeight += estimateEntityHeight(diagram.entities[layer[i]]);
         if (i < layer.length - 1) totalHeight += ENTITY_SPACING_Y;
       }
       layerHeights.push(totalHeight);
     }
 
-    // Find the tallest layer for vertical centering
     const maxHeight = Math.max(...layerHeights);
 
-    // Assign coordinates
     for (let l = 0; l < layers.length; l++) {
       const layer = layers[l];
       const x = OFFSET_X + l * LAYER_SPACING_X;
       const layerHeight = layerHeights[l];
-      let y = globalOffsetY + (maxHeight - layerHeight) / 2;
+      let y = startY + (maxHeight - layerHeight) / 2;
 
       for (const name of layer) {
         positions[name] = { x, y };
@@ -299,19 +328,39 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       }
     }
 
-    globalOffsetY += maxHeight + COMPONENT_GAP_Y;
+    return startY + maxHeight;
   }
 
-  // Place isolated entities in a grid below everything
-  if (isolated.length > 0) {
-    const isoCols = 4;
-    for (let i = 0; i < isolated.length; i++) {
-      const col = i % isoCols;
-      const row = Math.floor(i / isoCols);
-      positions[isolated[i]] = {
-        x: OFFSET_X + col * LAYER_SPACING_X,
-        y: globalOffsetY + row * (GRID_SPACING_Y),
-      };
+  // --- Phase 4: Layout each group ---
+  const positions: Record<string, { x: number; y: number }> = {};
+  let globalOffsetY = OFFSET_Y;
+
+  for (const group of topLevelGroups) {
+    const { components, isolated } = findComponents(group);
+
+    for (const component of components) {
+      const bottomY = layoutComponent(component, globalOffsetY);
+      globalOffsetY = bottomY + COMPONENT_GAP_Y;
+    }
+
+    // Place isolated entities in a grid
+    if (isolated.length > 0) {
+      const isoCols = 4;
+      for (let i = 0; i < isolated.length; i++) {
+        const col = i % isoCols;
+        const row = Math.floor(i / isoCols);
+        positions[isolated[i]] = {
+          x: OFFSET_X + col * LAYER_SPACING_X,
+          y: globalOffsetY + row * GRID_SPACING_Y,
+        };
+      }
+      const isoRows = Math.ceil(isolated.length / isoCols);
+      globalOffsetY += isoRows * GRID_SPACING_Y;
+    }
+
+    // Extra gap between app groups
+    if (useAppGrouping) {
+      globalOffsetY += APP_GROUP_GAP_Y - COMPONENT_GAP_Y;
     }
   }
 
