@@ -354,20 +354,28 @@ function handleFitView(): void {
 function setupPanZoom(): void {
   const svg = getSvg();
 
-  // Zoom with mouse wheel
+  // Wheel event: Ctrl+wheel = zoom, plain wheel = pan
   svg.addEventListener('wheel', (e) => {
     e.preventDefault();
-    const delta = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * delta));
 
-    // Zoom towards cursor position
-    const rect = svg.getBoundingClientRect();
-    const cursorX = e.clientX - rect.left;
-    const cursorY = e.clientY - rect.top;
+    if (e.ctrlKey) {
+      // Ctrl+wheel (mouse scroll wheel or touchpad pinch) → Zoom
+      const delta = e.deltaY > 0 ? 0.9 : 1.1;
+      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * delta));
 
-    panX = cursorX - (cursorX - panX) * (newZoom / zoom);
-    panY = cursorY - (cursorY - panY) * (newZoom / zoom);
-    zoom = newZoom;
+      // Zoom towards cursor position
+      const rect = svg.getBoundingClientRect();
+      const cursorX = e.clientX - rect.left;
+      const cursorY = e.clientY - rect.top;
+
+      panX = cursorX - (cursorX - panX) * (newZoom / zoom);
+      panY = cursorY - (cursorY - panY) * (newZoom / zoom);
+      zoom = newZoom;
+    } else {
+      // Plain wheel (mouse scroll or touchpad two-finger scroll) → Pan
+      panX -= e.deltaX;
+      panY -= e.deltaY;
+    }
 
     updateViewportTransform();
     if (layout) {
