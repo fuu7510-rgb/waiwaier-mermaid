@@ -14,6 +14,7 @@ const OFFSET_Y = 100;
 const BARYCENTER_ITERATIONS = 4;
 const COMPONENT_GAP_Y = 120;
 const APP_GROUP_GAP_Y = 200;
+const MIN_COMMUNITY_SIZE = 8;
 
 /** Auto-layout entities that don't have positions yet */
 export function autoLayoutNewEntities(
@@ -146,16 +147,28 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
 
   // Build ordered list of entity groups
   const topLevelGroups: string[][] = [];
+  let useGroupGap = false;
+
   if (useAppGrouping) {
-    // Sort by size (largest first)
+    useGroupGap = true;
     const sorted = [...appPrefixMap.entries()]
       .sort((a, b) => b[1].length - a[1].length);
     for (const [, entities] of sorted) {
       topLevelGroups.push(entities);
     }
   } else {
-    // Single group containing all entities
-    topLevelGroups.push(entityNames);
+    // Find connected components, then apply community detection to large ones
+    const { components, isolated } = findComponents(entityNames);
+
+    for (const comp of components) {
+      const communities = detectCommunities(comp);
+      if (communities.length > 1) useGroupGap = true;
+      topLevelGroups.push(...communities);
+    }
+
+    if (isolated.length > 0) {
+      topLevelGroups.push(isolated);
+    }
   }
 
   // --- Helper: find connected components within a subset of entities ---
@@ -197,6 +210,109 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
 
     comps.sort((a, b) => b.length - a.length);
     return { components: comps, isolated: iso };
+  }
+
+  // --- Helper: community detection (Louvain phase 1) ---
+  // Splits a large connected component into densely-connected sub-groups
+  // by greedily optimizing modularity.
+  function detectCommunities(component: string[]): string[][] {
+    if (component.length < MIN_COMMUNITY_SIZE) return [component];
+
+    const memberSet = new Set(component);
+
+    // Count edges and degrees within the component
+    let m = 0;
+    const deg = new Map<string, number>();
+    for (const name of component) {
+      let d = 0;
+      for (const nb of neighbors.get(name)!) {
+        if (memberSet.has(nb)) d++;
+      }
+      deg.set(name, d);
+      m += d;
+    }
+    m /= 2; // each edge counted twice
+    if (m === 0) return [component];
+
+    // Initialize: each node in its own community
+    const comm = new Map<string, number>();
+    let nextId = 0;
+    for (const name of component) {
+      comm.set(name, nextId++);
+    }
+
+    // sigma_tot[c] = sum of degrees of nodes in community c
+    const sigmaTot = new Map<number, number>();
+    for (const name of component) {
+      sigmaTot.set(comm.get(name)!, deg.get(name)!);
+    }
+
+    // Greedy modularity optimization
+    let improved = true;
+    let iterations = 0;
+    while (improved && iterations < 20) {
+      improved = false;
+      iterations++;
+
+      for (const node of component) {
+        const currentComm = comm.get(node)!;
+        const ki = deg.get(node)!;
+
+        // Count edges from this node to each neighboring community
+        const edgesToComm = new Map<number, number>();
+        for (const nb of neighbors.get(node)!) {
+          if (!memberSet.has(nb)) continue;
+          const nbComm = comm.get(nb)!;
+          edgesToComm.set(nbComm, (edgesToComm.get(nbComm) || 0) + 1);
+        }
+
+        const ki_in_current = edgesToComm.get(currentComm) || 0;
+        const sigma_tot_current = sigmaTot.get(currentComm)! - ki;
+
+        let bestComm = currentComm;
+        let bestDeltaQ = 0;
+
+        for (const [targetComm, ki_in_target] of edgesToComm) {
+          if (targetComm === currentComm) continue;
+
+          const sigma_tot_target = sigmaTot.get(targetComm)!;
+
+          // Modularity gain:
+          // ΔQ = (k_i_in_target - k_i_in_current) / m
+          //    - k_i * (Σ_tot_target - Σ_tot_current) / (2m²)
+          const deltaQ =
+            (ki_in_target - ki_in_current) / m -
+            (ki * (sigma_tot_target - sigma_tot_current)) / (2 * m * m);
+
+          if (deltaQ > bestDeltaQ) {
+            bestDeltaQ = deltaQ;
+            bestComm = targetComm;
+          }
+        }
+
+        if (bestComm !== currentComm) {
+          sigmaTot.set(currentComm, sigmaTot.get(currentComm)! - ki);
+          sigmaTot.set(bestComm, sigmaTot.get(bestComm)! + ki);
+          comm.set(node, bestComm);
+          if (sigmaTot.get(currentComm) === 0) sigmaTot.delete(currentComm);
+          improved = true;
+        }
+      }
+    }
+
+    // Collect communities
+    const communityMap = new Map<number, string[]>();
+    for (const name of component) {
+      const c = comm.get(name)!;
+      if (!communityMap.has(c)) communityMap.set(c, []);
+      communityMap.get(c)!.push(name);
+    }
+
+    const result = [...communityMap.values()];
+    if (result.length <= 1) return [component];
+
+    result.sort((a, b) => b.length - a.length);
+    return result;
   }
 
   // --- Helper: layer assignment (Kahn's algorithm) ---
@@ -358,8 +474,8 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       globalOffsetY += isoRows * GRID_SPACING_Y;
     }
 
-    // Extra gap between app groups
-    if (useAppGrouping) {
+    // Extra gap between visual groups (app-based or community-based)
+    if (useGroupGap) {
       globalOffsetY += APP_GROUP_GAP_Y - COMPONENT_GAP_Y;
     }
   }
