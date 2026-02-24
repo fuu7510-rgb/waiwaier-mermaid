@@ -3,6 +3,7 @@ import { WebSocketClient } from './websocket.js';
 import { Renderer } from './renderer.js';
 import { DragHandler } from './drag.js';
 import { autoLayoutNewEntities, autoLayoutAll } from './layout.js';
+import { HistoryManager } from './history.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -10,6 +11,7 @@ let layout: LayoutData | null = null;
 let renderer: Renderer;
 let dragHandler: DragHandler;
 let saveTimer: number | null = null;
+const history = new HistoryManager(50);
 
 // Pan & Zoom state
 let panX = 0;
@@ -36,6 +38,12 @@ function updateViewportTransform(): void {
   const vp = getViewportGroup();
   vp.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoom})`);
   dragHandler.setTransform(panX, panY, zoom);
+
+  // ビューポートカリング
+  const svg = getSvg();
+  const rect = svg.getBoundingClientRect();
+  renderer.setViewportBounds(rect.width, rect.height, panX, panY, zoom);
+  renderer.applyCulling();
 }
 
 async function loadAndRender(): Promise<void> {
@@ -48,6 +56,9 @@ async function loadAndRender(): Promise<void> {
 
     renderer.render(diagram, layout.entities, layout.labels);
     updateViewportTransform();
+
+    history.init(layout.entities);
+    updateUndoRedoButtons();
 
     // Clear error
     const errorEl = document.getElementById('error-bar');
@@ -82,6 +93,8 @@ function scheduleSaveLayout(): void {
 function handleDragEnd(entityName: string, x: number, y: number): void {
   if (!layout) return;
   layout.entities[entityName] = { x, y };
+  history.push(layout.entities);
+  updateUndoRedoButtons();
   scheduleSaveLayout();
 }
 
@@ -266,7 +279,36 @@ function handleAutoLayout(): void {
   if (!diagram || !layout) return;
   layout.entities = autoLayoutAll(diagram);
   renderer.render(diagram, layout.entities, layout.labels);
+  history.push(layout.entities);
+  updateUndoRedoButtons();
   scheduleSaveLayout();
+}
+
+function handleUndo(): void {
+  if (!diagram || !layout) return;
+  const positions = history.undo();
+  if (!positions) return;
+  layout.entities = positions;
+  renderer.render(diagram, layout.entities, layout.labels);
+  updateUndoRedoButtons();
+  scheduleSaveLayout();
+}
+
+function handleRedo(): void {
+  if (!diagram || !layout) return;
+  const positions = history.redo();
+  if (!positions) return;
+  layout.entities = positions;
+  renderer.render(diagram, layout.entities, layout.labels);
+  updateUndoRedoButtons();
+  scheduleSaveLayout();
+}
+
+function updateUndoRedoButtons(): void {
+  const undoBtn = document.getElementById('btn-undo') as HTMLButtonElement | null;
+  const redoBtn = document.getElementById('btn-redo') as HTMLButtonElement | null;
+  if (undoBtn) undoBtn.disabled = !history.canUndo;
+  if (redoBtn) redoBtn.disabled = !history.canRedo;
 }
 
 function handleFitView(): void {
@@ -379,6 +421,21 @@ function setupPanZoom(): void {
 
 function setupKeyboard(): void {
   window.addEventListener('keydown', (e) => {
+    // Ctrl+Z: Undo
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey) {
+      e.preventDefault();
+      handleUndo();
+      return;
+    }
+
+    // Ctrl+Y or Ctrl+Shift+Z: Redo
+    if ((e.key === 'y' && (e.ctrlKey || e.metaKey)) ||
+        (e.key === 'z' && (e.ctrlKey || e.metaKey) && e.shiftKey)) {
+      e.preventDefault();
+      handleRedo();
+      return;
+    }
+
     // F: Fit all
     if (e.key === 'f' && !e.ctrlKey && !e.metaKey && !e.altKey) {
       const activeTag = document.activeElement?.tagName;
@@ -410,6 +467,8 @@ function setupKeyboard(): void {
 }
 
 function setupToolbar(): void {
+  document.getElementById('btn-undo')?.addEventListener('click', handleUndo);
+  document.getElementById('btn-redo')?.addEventListener('click', handleRedo);
   document.getElementById('btn-fit')?.addEventListener('click', handleFitView);
   document.getElementById('btn-auto-layout')?.addEventListener('click', handleAutoLayout);
   document.getElementById('btn-zoom-in')?.addEventListener('click', () => {

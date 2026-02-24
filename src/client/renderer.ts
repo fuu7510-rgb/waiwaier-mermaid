@@ -27,6 +27,16 @@ export class Renderer {
   private entityPositions: Map<string, { x: number; y: number }> = new Map();
   private diagram: ERDiagramJSON | null = null;
   private labels: Record<string, string> = {};
+  // 最適化1: コネクタ差分更新用インデックス
+  private entityRelationshipIndex: Map<string, number[]> = new Map();
+  private connectorElements: Map<number, SVGGElement> = new Map();
+  // 最適化2: テキスト計測キャッシュ
+  private measurementCache: Map<string, { width: number; nameColStart: number }> = new Map();
+  private measureText: SVGTextElement | null = null;
+  // 最適化3: ビューポートカリング
+  private visibleEntities: Set<string> = new Set();
+  private visibleConnectors: Set<number> = new Set();
+  private viewportBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
 
   constructor(svg: SVGSVGElement, viewport: SVGGElement) {
     this.svg = svg;
@@ -46,6 +56,39 @@ export class Renderer {
     return this.entitiesGroup;
   }
 
+  private computeMeasurementKey(entity: Entity): string {
+    const label = this.labels[entity.name] || '';
+    const parts = [entity.name, label];
+    for (const attr of entity.attributes) {
+      parts.push(attr.type, attr.name, attr.comment || '');
+    }
+    return parts.join('\x00');
+  }
+
+  private getMeasureText(): SVGTextElement {
+    if (!this.measureText) {
+      this.measureText = document.createElementNS(SVG_NS, 'text');
+      this.measureText.style.visibility = 'hidden';
+      this.measureText.style.position = 'absolute';
+      this.measureText.style.fontFamily = "'JetBrains Mono', 'Fira Code', monospace";
+      this.measureText.setAttribute('aria-hidden', 'true');
+      this.svg.appendChild(this.measureText);
+    }
+    return this.measureText;
+  }
+
+  private buildRelationshipIndex(relationships: Relationship[]): void {
+    this.entityRelationshipIndex.clear();
+    relationships.forEach((rel, index) => {
+      for (const name of [rel.entityA, rel.entityB]) {
+        if (!this.entityRelationshipIndex.has(name)) {
+          this.entityRelationshipIndex.set(name, []);
+        }
+        this.entityRelationshipIndex.get(name)!.push(index);
+      }
+    });
+  }
+
   getEntityRect(name: string): EntityRect | null {
     const pos = this.entityPositions.get(name);
     const size = this.entitySizes.get(name);
@@ -58,8 +101,14 @@ export class Renderer {
     positions: Record<string, { x: number; y: number }>,
     labels?: Record<string, string>,
   ): void {
+    const newLabels = labels || {};
+    const labelsChanged = JSON.stringify(newLabels) !== JSON.stringify(this.labels);
+    if (diagram !== this.diagram || labelsChanged) {
+      this.measurementCache.clear();
+    }
     this.diagram = diagram;
-    this.labels = labels || {};
+    this.labels = newLabels;
+    this.buildRelationshipIndex(diagram.relationships);
     this.entitiesGroup.innerHTML = '';
     this.connectorsGroup.innerHTML = '';
     this.entitySizes.clear();
@@ -74,6 +123,15 @@ export class Renderer {
 
     // Render relationships
     this.renderAllConnectors(diagram.relationships);
+
+    // カリング状態を初期化(全て表示状態としてマーク)
+    this.visibleEntities.clear();
+    for (const name of Object.keys(diagram.entities)) {
+      this.visibleEntities.add(name);
+    }
+    this.visibleConnectors.clear();
+    diagram.relationships.forEach((_, i) => this.visibleConnectors.add(i));
+    this.applyCulling();
   }
 
   updateEntityPosition(name: string, x: number, y: number): void {
@@ -242,10 +300,11 @@ export class Renderer {
     width: number;
     nameColStart: number;
   } {
-    const tempText = document.createElementNS(SVG_NS, 'text');
-    tempText.style.visibility = 'hidden';
-    tempText.style.fontFamily = "'JetBrains Mono', 'Fira Code', monospace";
-    this.svg.appendChild(tempText);
+    const key = this.computeMeasurementKey(entity);
+    const cached = this.measurementCache.get(key);
+    if (cached) return cached;
+
+    const tempText = this.getMeasureText();
 
     let maxWidth = 0;
 
@@ -293,24 +352,27 @@ export class Renderer {
       maxWidth = Math.max(maxWidth, rowWidth + PADDING_X);
     }
 
-    this.svg.removeChild(tempText);
-    return { width: Math.max(MIN_WIDTH, maxWidth), nameColStart };
+    const result = { width: Math.max(MIN_WIDTH, maxWidth), nameColStart };
+    this.measurementCache.set(key, result);
+    return result;
   }
 
   private renderAllConnectors(relationships: Relationship[]): void {
     this.connectorsGroup.innerHTML = '';
+    this.connectorElements.clear();
 
-    for (const rel of relationships) {
+    relationships.forEach((rel, index) => {
       const rectA = this.getEntityRect(rel.entityA);
       const rectB = this.getEntityRect(rel.entityB);
-      if (!rectA || !rectB) continue;
+      if (!rectA || !rectB) return;
 
-      this.renderConnector(rel, rectA, rectB);
-    }
+      this.renderConnector(rel, index, rectA, rectB);
+    });
   }
 
   private renderConnector(
     rel: Relationship,
+    relIndex: number,
     rectA: EntityRect,
     rectB: EntityRect,
   ): void {
@@ -318,6 +380,7 @@ export class Renderer {
     g.classList.add('connector');
     g.setAttribute('data-from', rel.entityA);
     g.setAttribute('data-to', rel.entityB);
+    g.setAttribute('data-rel-index', String(relIndex));
 
     const connector = computeConnectorPath(rectA, rectB);
 
@@ -374,5 +437,83 @@ export class Renderer {
     }
 
     this.connectorsGroup.appendChild(g);
+    this.connectorElements.set(relIndex, g);
+  }
+
+  updateConnectorsForEntity(entityName: string): void {
+    if (!this.diagram) return;
+    const relIndices = this.entityRelationshipIndex.get(entityName);
+    if (!relIndices) return;
+    const seen = new Set<number>();
+    for (const index of relIndices) {
+      if (seen.has(index)) continue;
+      seen.add(index);
+      const rel = this.diagram.relationships[index];
+      const rectA = this.getEntityRect(rel.entityA);
+      const rectB = this.getEntityRect(rel.entityB);
+      if (!rectA || !rectB) continue;
+      const old = this.connectorElements.get(index);
+      if (old) old.remove();
+      this.renderConnector(rel, index, rectA, rectB);
+    }
+  }
+
+  setViewportBounds(svgWidth: number, svgHeight: number, panX: number, panY: number, zoom: number): void {
+    this.viewportBounds = {
+      minX: (0 - panX) / zoom,
+      minY: (0 - panY) / zoom,
+      maxX: (svgWidth - panX) / zoom,
+      maxY: (svgHeight - panY) / zoom,
+    };
+  }
+
+  private isEntityVisible(name: string): boolean {
+    if (!this.viewportBounds) return true;
+    const pos = this.entityPositions.get(name);
+    const size = this.entitySizes.get(name);
+    if (!pos || !size) return true;
+
+    const MARGIN = 200;
+    return !(
+      pos.x + size.width < this.viewportBounds.minX - MARGIN ||
+      pos.x > this.viewportBounds.maxX + MARGIN ||
+      pos.y + size.height < this.viewportBounds.minY - MARGIN ||
+      pos.y > this.viewportBounds.maxY + MARGIN
+    );
+  }
+
+  private isConnectorVisible(relIndex: number): boolean {
+    if (!this.diagram) return true;
+    const rel = this.diagram.relationships[relIndex];
+    return this.isEntityVisible(rel.entityA) || this.isEntityVisible(rel.entityB);
+  }
+
+  applyCulling(): void {
+    if (!this.diagram) return;
+
+    this.entityPositions.forEach((_, name) => {
+      const visible = this.isEntityVisible(name);
+      const g = this.entitiesGroup.querySelector(`[data-entity="${name}"]`) as SVGGElement | null;
+      if (!g) return;
+
+      if (visible && !this.visibleEntities.has(name)) {
+        g.removeAttribute('display');
+        this.visibleEntities.add(name);
+      } else if (!visible && this.visibleEntities.has(name)) {
+        g.setAttribute('display', 'none');
+        this.visibleEntities.delete(name);
+      }
+    });
+
+    this.connectorElements.forEach((g, index) => {
+      const visible = this.isConnectorVisible(index);
+      if (visible && !this.visibleConnectors.has(index)) {
+        g.removeAttribute('display');
+        this.visibleConnectors.add(index);
+      } else if (!visible && this.visibleConnectors.has(index)) {
+        g.setAttribute('display', 'none');
+        this.visibleConnectors.delete(index);
+      }
+    });
   }
 }

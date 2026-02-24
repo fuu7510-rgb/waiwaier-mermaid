@@ -106,7 +106,7 @@ export class DragHandler {
         this.rafId = null;
         if (!this.dragTarget) return;
         this.renderer.updateEntityPosition(this.dragEntityName, this.currentX, this.currentY);
-        this.renderer.updateConnectors();
+        this.renderer.updateConnectorsForEntity(this.dragEntityName);
       });
     }
   }

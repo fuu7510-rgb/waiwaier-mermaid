@@ -101,6 +101,16 @@ html, body {
   background: var(--accent-muted);
 }
 
+.toolbar-buttons button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.toolbar-buttons button:disabled:hover {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
 .toolbar-shortcuts {
   margin-left: auto;
   display: flex;
