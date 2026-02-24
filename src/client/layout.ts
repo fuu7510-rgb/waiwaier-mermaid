@@ -7,11 +7,12 @@ const GRID_OFFSET_X = 60;
 const GRID_OFFSET_Y = 60;
 
 // Hierarchical layout constants
-const LAYER_SPACING_X = 380;
-const ENTITY_SPACING_Y = 40;
-const OFFSET_X = 80;
-const OFFSET_Y = 80;
+const LAYER_SPACING_X = 500;
+const ENTITY_SPACING_Y = 80;
+const OFFSET_X = 100;
+const OFFSET_Y = 100;
 const BARYCENTER_ITERATIONS = 4;
+const COMPONENT_GAP_Y = 120;
 
 /** Auto-layout entities that don't have positions yet */
 export function autoLayoutNewEntities(
@@ -298,7 +299,7 @@ export function autoLayoutAll(diagram: ERDiagramJSON): Record<string, { x: numbe
       }
     }
 
-    globalOffsetY += maxHeight + 80; // gap between components
+    globalOffsetY += maxHeight + COMPONENT_GAP_Y;
   }
 
   // Place isolated entities in a grid below everything
