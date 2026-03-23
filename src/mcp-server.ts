@@ -6,6 +6,7 @@ import { resolve, dirname, join } from 'path';
 import { parseERDiagram } from './parser/er-parser.js';
 import { LayoutStore } from './server/layout-store.js';
 import { startServer } from './server/server.js';
+import { computeAutoLayout, type LayoutAlgorithm } from './shared/auto-layout.js';
 import type { ERDiagramJSON } from './parser/types.js';
 
 // __dirname is provided by esbuild banner
@@ -137,6 +138,50 @@ server.tool(
 
     store.save(layout);
     return { content: [{ type: 'text' as const, text: 'レイアウトを保存しました: ' + store.getLayoutPath() }] };
+  },
+);
+
+// --- ツール: 自動レイアウト ---
+server.tool(
+  'auto-layout',
+  '指定したER図のエンティティを自動整列し、レイアウトファイルに保存する',
+  {
+    filePath: z.string().describe('.mmdファイルの絶対パス'),
+    algorithm: z.enum(['sugiyama', 'force', 'community']).optional()
+      .describe('レイアウトアルゴリズム (default: sugiyama)。sugiyama=階層型、force=力学モデル、community=コミュニティ検出+階層型'),
+  },
+  async ({ filePath, algorithm }) => {
+    const absPath = resolve(filePath);
+    if (!existsSync(absPath)) {
+      return { content: [{ type: 'text' as const, text: `Error: ファイルが見つかりません: ${absPath}` }], isError: true };
+    }
+
+    const source = readFileSync(absPath, 'utf-8');
+    const parsed = parseERDiagram(source);
+    const diagram: ERDiagramJSON = {
+      entities: Object.fromEntries(parsed.entities),
+      relationships: parsed.relationships,
+    };
+
+    const entityCount = Object.keys(diagram.entities).length;
+    if (entityCount === 0) {
+      return { content: [{ type: 'text' as const, text: 'エンティティが見つかりません' }] };
+    }
+
+    const algo: LayoutAlgorithm = algorithm || 'sugiyama';
+    const positions = computeAutoLayout(diagram, algo);
+
+    const store = new LayoutStore(absPath);
+    let layout = store.load() || store.createDefault(source);
+    layout.entities = { ...layout.entities, ...positions };
+    store.save(layout);
+
+    return {
+      content: [{
+        type: 'text' as const,
+        text: `${entityCount}個のエンティティを自動整列しました (algorithm: ${algo})\nレイアウト保存先: ${store.getLayoutPath()}`,
+      }],
+    };
   },
 );
 
