@@ -1,4 +1,4 @@
-import type { ERDiagramJSON, Entity, Relationship } from '../parser/types.js';
+import type { ERDiagramJSON, Entity, LayoutData, Relationship } from '../parser/types.js';
 import {
   computeConnectorPath,
   assignPorts,
@@ -33,6 +33,7 @@ export class Renderer {
   private entityPositions: Map<string, { x: number; y: number }> = new Map();
   private diagram: ERDiagramJSON | null = null;
   private labels: Record<string, string> = {};
+  private groups: LayoutData['groups'] = undefined;
   // 最適化1: コネクタ差分更新用インデックス
   private entityRelationshipIndex: Map<string, number[]> = new Map();
   private connectorElements: Map<number, SVGGElement> = new Map();
@@ -95,6 +96,15 @@ export class Renderer {
   private get COMPACT_HEADER_HEIGHT(): number { return BASE_COMPACT_HEADER_HEIGHT * this._fontScale; }
   private get COMPACT_LABEL_EXTRA(): number { return BASE_COMPACT_LABEL_EXTRA * this._fontScale; }
 
+  /** エンティティが所属するグループの色を返す (無ければ null) */
+  getGroupColor(entityName: string): string | null {
+    if (!this.groups) return null;
+    for (const group of Object.values(this.groups)) {
+      if (group.entities.includes(entityName)) return group.color;
+    }
+    return null;
+  }
+
   /** layout.labels → Entity.label の順でフォールバック */
   private resolveLabel(entity: Entity): string {
     return this.labels[entity.name] || entity.label || '';
@@ -148,6 +158,7 @@ export class Renderer {
     diagram: ERDiagramJSON,
     positions: Record<string, { x: number; y: number }>,
     labels?: Record<string, string>,
+    groups?: LayoutData['groups'],
   ): void {
     const newLabels = labels || {};
     const labelsChanged = JSON.stringify(newLabels) !== JSON.stringify(this.labels);
@@ -156,6 +167,7 @@ export class Renderer {
     }
     this.diagram = diagram;
     this.labels = newLabels;
+    this.groups = groups;
     this.buildRelationshipIndex(diagram.relationships);
     this.entitiesGroup.innerHTML = '';
     this.connectorsGroup.innerHTML = '';
@@ -218,6 +230,8 @@ export class Renderer {
       headerRect.setAttribute('height', String(compactHeaderHeight));
       headerRect.setAttribute('rx', '6');
       headerRect.setAttribute('ry', '6');
+      const compactGroupColor = this.getGroupColor(entity.name);
+      if (compactGroupColor) headerRect.setAttribute('fill', compactGroupColor);
       g.appendChild(headerRect);
 
       if (label) {
@@ -275,6 +289,8 @@ export class Renderer {
     headerRect.setAttribute('height', String(headerHeight));
     headerRect.setAttribute('rx', '4');
     headerRect.setAttribute('ry', '4');
+    const normalGroupColor = this.getGroupColor(entity.name);
+    if (normalGroupColor) headerRect.setAttribute('fill', normalGroupColor);
     g.appendChild(headerRect);
 
     // Header text

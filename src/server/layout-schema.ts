@@ -20,4 +20,8 @@ export const layoutDataSchema = z.object({
   labels: z.record(z.string(), z.string()).optional(),
   compactEntities: z.record(z.string(), entityPositionSchema).optional(),
   compactCanvas: canvasSchema.optional(),
+  groups: z.record(z.string(), z.object({
+    color: z.string(),
+    entities: z.array(z.string()),
+  })).optional(),
 }).strip();

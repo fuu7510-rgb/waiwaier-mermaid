@@ -41,6 +41,18 @@ export interface LayoutData {
   };
   entities: Record<string, { x: number; y: number }>;
   labels?: Record<string, string>;
+  compactEntities?: Record<string, { x: number; y: number }>;
+  compactCanvas?: {
+    panX: number;
+    panY: number;
+    zoom: number;
+  };
+  groups?: {
+    [groupName: string]: {
+      color: string;
+      entities: string[];
+    };
+  };
 }
 
 export interface ERDiagramJSON {

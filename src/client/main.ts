@@ -148,7 +148,7 @@ async function loadAndRender(): Promise<void> {
       }
     }
 
-    renderer.render(diagram, activeEntities(), layout.labels);
+    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
     updateViewportTransform();
 
     // Reapply search highlights after re-render
@@ -221,7 +221,7 @@ const labelEditorDeps = {
   scheduleSaveLayout,
   rerender: () => {
     if (diagram) {
-      renderer.render(diagram, activeEntities(), layout?.labels);
+      renderer.render(diagram, activeEntities(), layout?.labels, layout?.groups);
       updateViewportTransform();
     }
   },
@@ -243,7 +243,7 @@ function handleCompactToggle(): void {
 
   // 切替先モードの位置でレンダリング
   const positions = activeEntities();
-  renderer.render(diagram, positions, layout.labels);
+  renderer.render(diagram, positions, layout.labels, layout.groups);
 
   // 切替先モードのキャンバス状態を復元
   const canvas = activeCanvas();
@@ -270,7 +270,7 @@ function handleAutoLayout(): void {
   if (!diagram || !layout) return;
   const positions = autoLayoutAll(diagram);
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels);
+  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
   history.push(activeEntities());
   updateUndoRedoButtons();
   scheduleSaveLayout();
@@ -281,7 +281,7 @@ function handleUndo(): void {
   const positions = history.undo();
   if (!positions) return;
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels);
+  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -291,7 +291,7 @@ function handleRedo(): void {
   const positions = history.redo();
   if (!positions) return;
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels);
+  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -416,7 +416,7 @@ function changeFontScale(delta: number): void {
   localStorage.setItem('er-font-scale', String(newScale));
   updateFontScaleLabel();
   if (diagram && layout) {
-    renderer.render(diagram, activeEntities(), layout.labels);
+    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
     updateViewportTransform();
   }
 }
@@ -550,6 +550,201 @@ function setupSearch(): void {
   });
 }
 
+// ── Context Menu (Group assignment) ──
+
+let activeContextMenu: HTMLDivElement | null = null;
+
+function closeContextMenu(): void {
+  if (activeContextMenu) {
+    activeContextMenu.remove();
+    activeContextMenu = null;
+  }
+}
+
+function rerenderAll(): void {
+  if (diagram && layout) {
+    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+    updateViewportTransform();
+    if (minimap) minimap.scheduleRedraw();
+  }
+}
+
+function showGroupContextMenu(entityName: string, clientX: number, clientY: number): void {
+  closeContextMenu();
+  if (!layout) return;
+
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.left = `${clientX}px`;
+  menu.style.top = `${clientY}px`;
+
+  // Find current group for this entity
+  let currentGroup: string | null = null;
+  if (layout.groups) {
+    for (const [gName, g] of Object.entries(layout.groups)) {
+      if (g.entities.includes(entityName)) { currentGroup = gName; break; }
+    }
+  }
+
+  // Existing groups list
+  if (layout.groups && Object.keys(layout.groups).length > 0) {
+    for (const [gName, g] of Object.entries(layout.groups)) {
+      const item = document.createElement('div');
+      item.className = 'context-menu-item';
+      const dot = document.createElement('span');
+      dot.className = 'group-color-dot';
+      dot.style.backgroundColor = g.color;
+      item.appendChild(dot);
+      const label = document.createElement('span');
+      label.textContent = gName + (currentGroup === gName ? ' (current)' : '');
+      item.appendChild(label);
+      item.addEventListener('click', () => {
+        assignEntityToGroup(entityName, gName, g.color);
+        closeContextMenu();
+      });
+      menu.appendChild(item);
+    }
+
+    const divider = document.createElement('div');
+    divider.className = 'context-menu-divider';
+    menu.appendChild(divider);
+  }
+
+  // New group input row
+  const inputRow = document.createElement('div');
+  inputRow.className = 'context-menu-input';
+  const nameInput = document.createElement('input');
+  nameInput.type = 'text';
+  nameInput.placeholder = 'New group';
+  const colorInput = document.createElement('input');
+  colorInput.type = 'color';
+  colorInput.value = '#e0af68';
+  const addBtn = document.createElement('span');
+  addBtn.className = 'context-menu-item';
+  addBtn.style.padding = '0';
+  addBtn.style.cursor = 'pointer';
+  addBtn.textContent = '+';
+  addBtn.addEventListener('click', () => {
+    const gName = nameInput.value.trim();
+    if (!gName) return;
+    assignEntityToGroup(entityName, gName, colorInput.value);
+    closeContextMenu();
+  });
+  nameInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const gName = nameInput.value.trim();
+      if (!gName) return;
+      assignEntityToGroup(entityName, gName, colorInput.value);
+      closeContextMenu();
+    }
+  });
+  inputRow.appendChild(nameInput);
+  inputRow.appendChild(colorInput);
+  inputRow.appendChild(addBtn);
+  menu.appendChild(inputRow);
+
+  // Remove from group option
+  if (currentGroup) {
+    const divider2 = document.createElement('div');
+    divider2.className = 'context-menu-divider';
+    menu.appendChild(divider2);
+
+    const removeItem = document.createElement('div');
+    removeItem.className = 'context-menu-item';
+    removeItem.textContent = 'Remove from group';
+    removeItem.addEventListener('click', () => {
+      removeEntityFromGroup(entityName);
+      closeContextMenu();
+    });
+    menu.appendChild(removeItem);
+  }
+
+  document.body.appendChild(menu);
+  activeContextMenu = menu;
+
+  // Adjust position if menu overflows viewport
+  const rect = menu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    menu.style.left = `${window.innerWidth - rect.width - 4}px`;
+  }
+  if (rect.bottom > window.innerHeight) {
+    menu.style.top = `${window.innerHeight - rect.height - 4}px`;
+  }
+
+  // Focus the name input for convenience
+  nameInput.focus();
+}
+
+function assignEntityToGroup(entityName: string, groupName: string, color: string): void {
+  if (!layout) return;
+  if (!layout.groups) layout.groups = {};
+
+  // Remove entity from any existing group
+  for (const g of Object.values(layout.groups)) {
+    const idx = g.entities.indexOf(entityName);
+    if (idx !== -1) g.entities.splice(idx, 1);
+  }
+
+  // Clean up empty groups
+  for (const [gName, g] of Object.entries(layout.groups)) {
+    if (g.entities.length === 0) delete layout.groups[gName];
+  }
+
+  // Add to target group
+  if (!layout.groups[groupName]) {
+    layout.groups[groupName] = { color, entities: [] };
+  }
+  layout.groups[groupName].entities.push(entityName);
+
+  rerenderAll();
+  scheduleSaveLayout();
+}
+
+function removeEntityFromGroup(entityName: string): void {
+  if (!layout?.groups) return;
+
+  for (const [gName, g] of Object.entries(layout.groups)) {
+    const idx = g.entities.indexOf(entityName);
+    if (idx !== -1) {
+      g.entities.splice(idx, 1);
+      if (g.entities.length === 0) delete layout.groups[gName];
+      break;
+    }
+  }
+
+  // Clean up empty groups object
+  if (Object.keys(layout.groups).length === 0) {
+    delete layout.groups;
+  }
+
+  rerenderAll();
+  scheduleSaveLayout();
+}
+
+function setupContextMenu(): void {
+  const svg = getSvg();
+
+  // Right-click on entity
+  svg.addEventListener('contextmenu', (e) => {
+    const target = e.target as Element;
+    const entityGroup = target.closest('[data-entity]');
+    if (!entityGroup) return;
+    e.preventDefault();
+    const entityName = entityGroup.getAttribute('data-entity');
+    if (entityName) showGroupContextMenu(entityName, e.clientX, e.clientY);
+  });
+
+  // Close on click outside or Escape
+  document.addEventListener('mousedown', (e) => {
+    if (activeContextMenu && !activeContextMenu.contains(e.target as Node)) {
+      closeContextMenu();
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeContextMenu();
+  });
+}
+
 function updateThemeButton(theme: string): void {
   const btn = document.getElementById('btn-theme');
   if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
@@ -625,7 +820,10 @@ function setupWebSocket(): void {
       if (diskLayout.compactCanvas) {
         layout.compactCanvas = diskLayout.compactCanvas;
       }
-      renderer.render(diagram, activeEntities(), layout.labels);
+      if (diskLayout.groups) {
+        layout.groups = diskLayout.groups;
+      }
+      renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
       updateViewportTransform();
       history.init(activeEntities());
       updateUndoRedoButtons();
@@ -713,11 +911,13 @@ async function init(): Promise<void> {
       updateViewportTransform();
       minimap.scheduleRedraw();
     },
+    getGroupColor: (name) => renderer.getGroupColor(name),
   });
 
   setupKeyboard();
   setupToolbar();
   setupSearch();
+  setupContextMenu();
   setupWebSocket();
 
   await loadAndRender();
