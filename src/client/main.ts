@@ -11,6 +11,7 @@ import {
   clearHighlight,
 } from './highlight.js';
 import { showLabelEditor } from './label-editor.js';
+import { exportSVG } from './export.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -431,6 +432,10 @@ function setupToolbar(): void {
   document.getElementById('btn-compact')?.addEventListener('click', handleCompactToggle);
   document.getElementById('btn-font-down')?.addEventListener('click', () => changeFontScale(-FONT_SCALE_STEP));
   document.getElementById('btn-font-up')?.addEventListener('click', () => changeFontScale(FONT_SCALE_STEP));
+  document.getElementById('btn-export-svg')?.addEventListener('click', () => {
+    const filename = layout?.diagramFile?.replace('.mmd', '.svg') || 'diagram.svg';
+    exportSVG(getSvg(), filename);
+  });
   document.getElementById('btn-back')?.addEventListener('click', async () => {
     try {
       await fetch('/api/close', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
