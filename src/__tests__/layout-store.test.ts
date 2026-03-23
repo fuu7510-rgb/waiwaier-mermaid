@@ -112,3 +112,28 @@ describe('getLayoutPath', () => {
     expect(layoutPath).toBe(join(tempDir, 'test.mmd') + '.layout.json');
   });
 });
+
+// ---------------------------------------------------------------------------
+// saveAndGetHash
+// ---------------------------------------------------------------------------
+describe('saveAndGetHash', () => {
+  it('保存した内容のハッシュを返す', () => {
+    const layout = store.createDefault('erDiagram');
+    const hash = store.saveAndGetHash(layout);
+    expect(hash).toMatch(/^sha256:[0-9a-f]{16}$/);
+  });
+
+  it('同じデータで2回呼ぶと同じハッシュを返す', () => {
+    const layout = store.createDefault('erDiagram');
+    const h1 = store.saveAndGetHash(layout);
+    const h2 = store.saveAndGetHash(layout);
+    expect(h1).toBe(h2);
+  });
+
+  it('返されたハッシュはディスク上のファイル内容と一致する', () => {
+    const layout = store.createDefault('erDiagram');
+    const hash = store.saveAndGetHash(layout);
+    const content = readFileSync(store.getLayoutPath(), 'utf-8');
+    expect(store.computeHash(content)).toBe(hash);
+  });
+});

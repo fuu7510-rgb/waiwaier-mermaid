@@ -6,6 +6,28 @@ export class LayoutStore {
   private layoutPath: string;
   private diagramPath: string;
 
+  private static readonly SCHEMA_META = {
+    description: 'Mermaid ER Viewer layout file',
+    fields: {
+      version: 'number — schema version (currently 1)',
+      diagramFile: 'string — source .mmd filename',
+      contentHash: 'string — hash of diagram content for change detection',
+      canvas: '{ panX, panY, zoom } — viewport state for normal mode',
+      entities: 'Record<entityName, { x, y }> — entity positions for normal mode',
+      labels: 'Record<entityName, string> — display labels (e.g. Japanese names) shown below entity name',
+      compactEntities: 'Record<entityName, { x, y }> — entity positions for compact mode',
+      compactCanvas: '{ panX, panY, zoom } — viewport state for compact mode',
+    },
+    notes: {
+      relationshipLabels: 'リレーションのラベル（日本語名など）は .mmd ファイル内に直接記述してください。例: USERS ||--o{ ORDERS : "注文する"',
+    },
+    labels_example: {
+      users: 'ユーザー',
+      orders: '注文',
+      order_items: '注文明細',
+    },
+  };
+
   constructor(diagramPath: string) {
     this.diagramPath = diagramPath;
     this.layoutPath = diagramPath + '.layout.json';
@@ -19,6 +41,10 @@ export class LayoutStore {
     return 'sha256:' + createHash('sha256').update(content).digest('hex').slice(0, 16);
   }
 
+  private buildOutput(layout: LayoutData): object {
+    return { _schema: LayoutStore.SCHEMA_META, ...layout };
+  }
+
   load(): LayoutData | null {
     if (!existsSync(this.layoutPath)) return null;
     try {
@@ -30,7 +56,13 @@ export class LayoutStore {
   }
 
   save(layout: LayoutData): void {
-    writeFileSync(this.layoutPath, JSON.stringify(layout, null, 2), 'utf-8');
+    writeFileSync(this.layoutPath, JSON.stringify(this.buildOutput(layout), null, 2), 'utf-8');
+  }
+
+  saveAndGetHash(layout: LayoutData): string {
+    const content = JSON.stringify(this.buildOutput(layout), null, 2);
+    writeFileSync(this.layoutPath, content, 'utf-8');
+    return this.computeHash(content);
   }
 
   createDefault(diagramContent: string): LayoutData {

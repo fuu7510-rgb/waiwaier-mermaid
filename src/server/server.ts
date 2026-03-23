@@ -25,7 +25,7 @@ export interface ServerState {
   layoutStore: LayoutStore | null;
   fileWatcher: FileWatcher | null;
   layoutWatcher: FileWatcher | null;
-  layoutSaving: boolean;
+  lastWrittenHash: string | null;
 }
 
 interface CreateAppOptions {
@@ -51,7 +51,7 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
     layoutStore: null,
     fileWatcher: null,
     layoutWatcher: null,
-    layoutSaving: false,
+    lastWrittenHash: null,
   };
   const broadcast = opts.broadcast ?? (() => {});
   const startLayoutWatcher = opts.startLayoutWatcher ?? (() => {});
@@ -279,15 +279,11 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
         return;
       }
       const layout = parsed.data as LayoutData;
-      state.layoutSaving = true;
-      state.layoutStore.save(layout);
-      // ファイル監視の安定待ち (awaitWriteFinish: 200ms) より長めに保持
-      setTimeout(() => { state.layoutSaving = false; }, 500);
+      state.lastWrittenHash = state.layoutStore.saveAndGetHash(layout);
       // API経由の保存でもクライアントに通知する
       broadcast({ type: 'layout-changed' });
       res.json({ ok: true });
     } catch (err: any) {
-      state.layoutSaving = false;
       res.status(500).json({ error: err.message });
     }
   });
@@ -305,7 +301,7 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
     layoutStore: options.diagramPath ? new LayoutStore(options.diagramPath) : null,
     fileWatcher: null,
     layoutWatcher: null,
-    layoutSaving: false,
+    lastWrittenHash: null,
   };
 
   function broadcast(message: object): void {
@@ -322,7 +318,12 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
     if (!state.layoutStore) return;
     state.layoutWatcher = new FileWatcher(state.layoutStore.getLayoutPath());
     state.layoutWatcher.onChange(() => {
-      if (state.layoutSaving) return; // 自身の保存は無視
+      const content = readFileSync(state.layoutStore!.getLayoutPath(), 'utf-8');
+      const currentHash = state.layoutStore!.computeHash(content);
+      if (currentHash === state.lastWrittenHash) {
+        state.lastWrittenHash = null;
+        return;
+      }
       broadcast({ type: 'layout-changed' });
     });
     state.layoutWatcher.start();
