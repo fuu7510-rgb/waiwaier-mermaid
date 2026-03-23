@@ -9,6 +9,7 @@ import { FileWatcher } from './file-watcher.js';
 import { loadRecentFiles, addToRecent } from './recent-store.js';
 import { assertWithinBase } from './path-guard.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
+import { layoutDataSchema } from './layout-schema.js';
 
 // __dirname is provided by esbuild banner
 declare const __dirname: string;
@@ -272,7 +273,12 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
       return;
     }
     try {
-      const layout = req.body as LayoutData;
+      const parsed = layoutDataSchema.safeParse(req.body);
+      if (!parsed.success) {
+        res.status(400).json({ error: 'Invalid layout data', details: parsed.error.issues });
+        return;
+      }
+      const layout = parsed.data as LayoutData;
       state.layoutSaving = true;
       state.layoutStore.save(layout);
       // ファイル監視の安定待ち (awaitWriteFinish: 200ms) より長めに保持
