@@ -673,6 +673,15 @@ async function init(): Promise<void> {
     onCanvasSaveAndSchedule: () => { if (layout) { saveActiveCanvas(); scheduleSaveLayout(); } },
     onClearHighlight: () => clearHighlight(hl, hlDeps),
     onEntityDblClick: (entityName) => { if (layout) showLabelEditor(labelEditorDeps, entityName); },
+    onTap: (x, y) => {
+      const el = document.elementFromPoint(x, y);
+      if (!el) return;
+      const entityGroup = el.closest('[data-entity]') as SVGGElement | null;
+      if (entityGroup) {
+        const name = entityGroup.getAttribute('data-entity')!;
+        handleEntityClick(entityGroup as unknown as SVGElement, name);
+      }
+    },
   });
   setupKeyboard();
   setupToolbar();

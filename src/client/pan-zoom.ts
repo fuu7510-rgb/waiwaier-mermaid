@@ -33,6 +33,7 @@ export interface PanZoomDeps {
   onCanvasSaveAndSchedule: () => void;
   onClearHighlight: () => void;
   onEntityDblClick: (entityName: string) => void;
+  onTap?: (x: number, y: number) => void;
 }
 
 export function setupPanZoom(state: PanZoomState, deps: PanZoomDeps): void {
@@ -123,4 +124,65 @@ export function setupPanZoom(state: PanZoomState, deps: PanZoomDeps): void {
 
   // Prevent context menu on SVG
   svg.addEventListener('contextmenu', (e) => e.preventDefault());
+
+  // --- Touch events ---
+  let touchStartTime = 0;
+  let touchStartPos = { x: 0, y: 0 };
+  let lastTouchDist = 0;
+
+  svg.addEventListener('touchstart', (e: TouchEvent) => {
+    if (e.touches.length === 1) {
+      const touch = e.touches[0];
+      touchStartTime = Date.now();
+      touchStartPos = { x: touch.clientX, y: touch.clientY };
+      state.isPanning = true;
+      state.panStartX = touch.clientX;
+      state.panStartY = touch.clientY;
+      state.panStartPanX = state.panX;
+      state.panStartPanY = state.panY;
+    } else if (e.touches.length === 2) {
+      state.isPanning = false;
+      lastTouchDist = getTouchDist(e.touches);
+    }
+  }, { passive: false });
+
+  svg.addEventListener('touchmove', (e: TouchEvent) => {
+    e.preventDefault();
+    if (e.touches.length === 1 && state.isPanning) {
+      const touch = e.touches[0];
+      state.panX = state.panStartPanX + (touch.clientX - state.panStartX);
+      state.panY = state.panStartPanY + (touch.clientY - state.panStartY);
+      deps.onTransformChange();
+    } else if (e.touches.length === 2) {
+      const dist = getTouchDist(e.touches);
+      const scale = dist / lastTouchDist;
+      const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+      const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, state.zoom * scale));
+      state.panX = midX - (midX - state.panX) * (newZoom / state.zoom);
+      state.panY = midY - (midY - state.panY) * (newZoom / state.zoom);
+      state.zoom = newZoom;
+      lastTouchDist = dist;
+      deps.onTransformChange();
+    }
+  }, { passive: false });
+
+  svg.addEventListener('touchend', (e: TouchEvent) => {
+    if (e.changedTouches.length === 1) {
+      const touch = e.changedTouches[0];
+      const dx = touch.clientX - touchStartPos.x;
+      const dy = touch.clientY - touchStartPos.y;
+      const dt = Date.now() - touchStartTime;
+      if (Math.hypot(dx, dy) < 10 && dt < 300) {
+        deps.onTap?.(touch.clientX, touch.clientY);
+      }
+    }
+    state.isPanning = false;
+  });
+
+  function getTouchDist(touches: TouchList): number {
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.hypot(dx, dy);
+  }
 }
