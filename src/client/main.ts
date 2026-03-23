@@ -10,6 +10,7 @@ import {
   handleEntityClick as hlHandleEntityClick,
   clearHighlight,
 } from './highlight.js';
+import { showLabelEditor } from './label-editor.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -210,61 +211,22 @@ function showToast(msg: string): void {
   }, 1500);
 }
 
-// ── ラベル編集（ダブルクリック） ──
-
-function showLabelEditor(entityName: string): void {
-  // 既に開いている場合は閉じる
-  document.getElementById('label-editor')?.remove();
-
-  const svg = getSvg();
-  const svgRect = svg.getBoundingClientRect();
-  const entityRect = renderer.getEntityRect(entityName);
-  if (!entityRect || !layout) return;
-
-  // SVG座標 → 画面座標
-  const screenX = entityRect.x * pz.zoom + pz.panX + svgRect.left;
-  const screenY = entityRect.y * pz.zoom + pz.panY + svgRect.top;
-  const screenW = entityRect.width * pz.zoom;
-
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.id = 'label-editor';
-  input.value = layout.labels?.[entityName] || '';
-  input.placeholder = '日本語名を入力…';
-  input.style.position = 'fixed';
-  input.style.left = `${screenX}px`;
-  input.style.top = `${screenY}px`;
-  input.style.width = `${Math.max(screenW, 200)}px`;
-
-  document.body.appendChild(input);
-  input.focus();
-  input.select();
-
-  let done = false;
-  function commit(): void {
-    if (done) return;
-    done = true;
-    const value = input.value.trim();
-    if (!layout!.labels) layout!.labels = {};
-    if (value) {
-      layout!.labels![entityName] = value;
-    } else {
-      delete layout!.labels![entityName];
-    }
-    input.remove();
+// Label editor deps (lazy — uses current state at call time)
+const labelEditorDeps = {
+  getLayout: () => layout,
+  getSvg,
+  getZoom: () => pz.zoom,
+  getPanX: () => pz.panX,
+  getPanY: () => pz.panY,
+  getEntityRect: (name: string) => renderer.getEntityRect(name),
+  scheduleSaveLayout,
+  rerender: () => {
     if (diagram) {
-      renderer.render(diagram, activeEntities(), layout!.labels);
+      renderer.render(diagram, activeEntities(), layout?.labels);
       updateViewportTransform();
-      scheduleSaveLayout();
     }
-  }
-
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { done = true; input.remove(); }
-  });
-  input.addEventListener('blur', () => commit());
-}
+  },
+};
 
 function handleCompactToggle(): void {
   if (!diagram || !layout) return;
@@ -559,7 +521,7 @@ async function init(): Promise<void> {
     onCanvasSave: () => { if (layout) saveActiveCanvas(); },
     onCanvasSaveAndSchedule: () => { if (layout) { saveActiveCanvas(); scheduleSaveLayout(); } },
     onClearHighlight: () => clearHighlight(hl, hlDeps),
-    onEntityDblClick: (entityName) => { if (layout) showLabelEditor(entityName); },
+    onEntityDblClick: (entityName) => { if (layout) showLabelEditor(labelEditorDeps, entityName); },
   });
   setupKeyboard();
   setupToolbar();
