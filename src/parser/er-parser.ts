@@ -6,8 +6,8 @@ import type { ERDiagram, Entity, Attribute, Relationship, Cardinality } from './
 const RELATIONSHIP_RE =
   /^\s*(\w+)\s+([o|}{]{1,2})\s*(-{2}|\.{2})\s*([o|}{]{1,2})\s+(\w+)\s*:\s*"?([^"]*)"?\s*$/;
 
-// Entity block start: ENTITY {
-const ENTITY_START_RE = /^\s*(\w+)\s*\{\s*$/;
+// Entity block start: ENTITY { or ENTITY["label"] {
+const ENTITY_START_RE = /^\s*(\w+)(?:\["([^"]*)"\])?\s*\{\s*$/;
 
 // Attribute line: type name PK,FK "comment"
 const ATTRIBUTE_RE =
@@ -19,7 +19,7 @@ const ER_DIAGRAM_RE = /^\s*erDiagram\s*$/;
 // Comment or empty
 const SKIP_RE = /^\s*(?:%%.*)?$/;
 
-function parseCardinality(sym: string): Cardinality {
+export function parseCardinality(sym: string): Cardinality {
   const s = sym.trim();
 
   switch (s) {
@@ -88,7 +88,7 @@ export function parseERDiagram(source: string): ERDiagram {
     if (entityMatch) {
       currentEntity = {
         name: entityMatch[1],
-        label: '',
+        label: entityMatch[2] || '',
         attributes: [],
       };
       continue;
