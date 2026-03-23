@@ -13,6 +13,7 @@ import {
 import { showLabelEditor } from './label-editor.js';
 import { exportSVG, exportPNG, copyToClipboard } from './export.js';
 import { showToast } from './toast.js';
+import { createSearchState, search, nextMatch, prevMatch } from './search.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -27,6 +28,9 @@ const pz = createPanZoomState();
 
 // Highlight state
 const hl = createHighlightState();
+
+// Search state
+const searchState = createSearchState();
 
 // Font scale
 const FONT_SCALE_STEP = 0.1;
@@ -141,6 +145,13 @@ async function loadAndRender(): Promise<void> {
 
     renderer.render(diagram, activeEntities(), layout.labels);
     updateViewportTransform();
+
+    // Reapply search highlights after re-render
+    if (searchState.query) {
+      search(searchState, searchDeps, searchState.query);
+      updateSearchHighlights();
+      updateSearchCount();
+    }
 
     history.init(activeEntities());
     updateUndoRedoButtons();
@@ -366,9 +377,14 @@ function setupKeyboard(): void {
       handleCompactToggle();
     }
 
-    // Escape: Clear highlight
+    // Escape: Close search bar first, otherwise clear highlight
     if (e.key === 'Escape') {
-      clearHighlight(hl, hlDeps);
+      const searchBar = document.getElementById('search-bar');
+      if (searchBar && searchBar.style.display !== 'none') {
+        toggleSearchBar(false);
+      } else {
+        clearHighlight(hl, hlDeps);
+      }
     }
 
     // 0/Home: Reset zoom
@@ -396,6 +412,130 @@ function changeFontScale(delta: number): void {
 function updateFontScaleLabel(): void {
   const label = document.getElementById('font-size-label');
   if (label) label.textContent = `${Math.round(renderer.fontScale * 100)}%`;
+}
+
+// ── Search ──
+
+const searchDeps = {
+  getDiagram: () => diagram,
+  getLayout: () => layout,
+  panToEntity: (name: string) => {
+    const positions = activeEntities();
+    const pos = positions?.[name];
+    if (pos) {
+      const svg = getSvg();
+      const svgRect = svg.getBoundingClientRect();
+      pz.panX = svgRect.width / 2 - pos.x * pz.zoom;
+      pz.panY = svgRect.height / 2 - pos.y * pz.zoom;
+      updateViewportTransform();
+    }
+  },
+};
+
+function updateSearchHighlights(): void {
+  const entitiesGroup = renderer.getEntitiesGroup();
+  const connectorsGroup = renderer.getConnectorsGroup();
+
+  // Clear all search classes
+  entitiesGroup.querySelectorAll('.entity-search-match').forEach(el => el.classList.remove('entity-search-match'));
+  entitiesGroup.querySelectorAll('.entity-dimmed').forEach(el => el.classList.remove('entity-dimmed'));
+  connectorsGroup.querySelectorAll('.connector-dimmed').forEach(el => el.classList.remove('connector-dimmed'));
+
+  if (searchState.matches.length === 0) return;
+
+  // Highlight matches
+  const matchSet = new Set(searchState.matches);
+  for (const entityEl of Array.from(entitiesGroup.children)) {
+    const name = entityEl.getAttribute('data-entity');
+    if (!name) continue;
+    if (matchSet.has(name)) {
+      entityEl.classList.add('entity-search-match');
+    } else if (searchState.filterMode) {
+      entityEl.classList.add('entity-dimmed');
+    }
+  }
+
+  // Dim connectors in filter mode
+  if (searchState.filterMode) {
+    for (const conn of Array.from(connectorsGroup.children)) {
+      const from = conn.getAttribute('data-from');
+      const to = conn.getAttribute('data-to');
+      if (!matchSet.has(from || '') && !matchSet.has(to || '')) {
+        conn.classList.add('connector-dimmed');
+      }
+    }
+  }
+}
+
+function updateSearchCount(): void {
+  const searchCount = document.getElementById('search-count');
+  if (!searchCount) return;
+  searchCount.textContent = searchState.matches.length > 0
+    ? `${searchState.currentIndex + 1}/${searchState.matches.length}`
+    : '';
+}
+
+function toggleSearchBar(show: boolean): void {
+  const searchBar = document.getElementById('search-bar');
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+  if (!searchBar || !searchInput) return;
+
+  searchBar.style.display = show ? 'flex' : 'none';
+  if (show) {
+    searchInput.focus();
+  } else {
+    searchInput.value = '';
+    search(searchState, searchDeps, '');
+    searchState.filterMode = false;
+    const filterBtn = document.getElementById('btn-filter');
+    if (filterBtn) filterBtn.classList.remove('active');
+    updateSearchHighlights();
+    updateSearchCount();
+  }
+}
+
+function setupSearch(): void {
+  const searchInput = document.getElementById('search-input') as HTMLInputElement | null;
+  if (!searchInput) return;
+
+  // Ctrl+F shortcut
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+      e.preventDefault();
+      toggleSearchBar(true);
+    }
+    if (e.key === 'Escape') {
+      const searchBar = document.getElementById('search-bar');
+      if (searchBar && searchBar.style.display !== 'none') {
+        toggleSearchBar(false);
+      }
+    }
+  });
+
+  // Search input events
+  searchInput.addEventListener('input', () => {
+    search(searchState, searchDeps, searchInput.value);
+    updateSearchHighlights();
+    updateSearchCount();
+  });
+
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.shiftKey ? prevMatch(searchState, searchDeps) : nextMatch(searchState, searchDeps);
+      updateSearchHighlights();
+      updateSearchCount();
+    }
+  });
+
+  // Toolbar and search bar buttons
+  document.getElementById('btn-search')?.addEventListener('click', () => toggleSearchBar(true));
+  document.getElementById('btn-search-close')?.addEventListener('click', () => toggleSearchBar(false));
+  document.getElementById('btn-filter')?.addEventListener('click', () => {
+    searchState.filterMode = !searchState.filterMode;
+    const filterBtn = document.getElementById('btn-filter');
+    if (filterBtn) filterBtn.classList.toggle('active', searchState.filterMode);
+    updateSearchHighlights();
+  });
 }
 
 function setupToolbar(): void {
@@ -519,6 +659,7 @@ async function init(): Promise<void> {
   });
   setupKeyboard();
   setupToolbar();
+  setupSearch();
   setupWebSocket();
 
   await loadAndRender();

@@ -25,6 +25,8 @@
       <button id="btn-export-svg" title="SVG保存">SVG</button>
       <button id="btn-export-png" title="PNG保存">PNG</button>
       <button id="btn-clipboard" title="クリップボードにコピー">Copy</button>
+      <span class="toolbar-separator"></span>
+      <button id="btn-search" title="検索 (Ctrl+F)">Search</button>
     </div>
     <div class="toolbar-shortcuts">
       <kbd>Ctrl+Z</kbd> Undo
@@ -34,8 +36,15 @@
       <kbd>F</kbd> Fit
       <kbd>L</kbd> Auto Layout
       <kbd>C</kbd> Compact
+      <kbd>Ctrl+F</kbd> Search
       <kbd>Ctrl+0</kbd> Reset
     </div>
+  </div>
+  <div id="search-bar" style="display: none;">
+    <input id="search-input" type="text" placeholder="エンティティ / カラム名で検索...">
+    <span id="search-count"></span>
+    <button id="btn-filter" title="フィルタ切替">Filter</button>
+    <button id="btn-search-close" title="閉じる">&times;</button>
   </div>
   <div id="error-bar" style="display: none;"></div>
   <svg id="er-svg" xmlns="http://www.w3.org/2000/svg">

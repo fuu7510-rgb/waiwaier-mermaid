@@ -66,6 +66,10 @@ export class Renderer {
     return this.entitiesGroup;
   }
 
+  getConnectorsGroup(): SVGGElement {
+    return this.connectorsGroup;
+  }
+
   get compactMode(): boolean {
     return this._compactMode;
   }
