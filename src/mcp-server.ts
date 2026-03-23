@@ -8,10 +8,25 @@ import { LayoutStore } from './server/layout-store.js';
 import { startServer } from './server/server.js';
 import type { ERDiagramJSON } from './parser/types.js';
 
+// __dirname is provided by esbuild banner
+declare const __dirname: string;
+
+const pkg = JSON.parse(readFileSync(join(__dirname, '..', '..', 'package.json'), 'utf-8'));
+
 const server = new McpServer({
   name: 'mermaid-er-viewer',
-  version: '1.0.0',
+  version: pkg.version,
 });
+
+// --- ツール: バージョン確認 ---
+server.tool(
+  'version',
+  'MCPサーバーの現在のバージョンを返す',
+  {},
+  async () => {
+    return { content: [{ type: 'text' as const, text: `mermaid-er-viewer v${pkg.version}` }] };
+  },
+);
 
 // --- ツール: ER図をパース ---
 server.tool(
