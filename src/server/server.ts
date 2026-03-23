@@ -7,6 +7,7 @@ import { parseERDiagram } from '../parser/er-parser.js';
 import { LayoutStore } from './layout-store.js';
 import { FileWatcher } from './file-watcher.js';
 import { loadRecentFiles, addToRecent } from './recent-store.js';
+import { assertWithinBase } from './path-guard.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 // __dirname is provided by esbuild banner
@@ -104,6 +105,13 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
         ? resolve(String(req.query.path))
         : baseDir;
 
+      try {
+        assertWithinBase(targetPath, baseDir);
+      } catch {
+        res.status(403).json({ error: 'Access denied: path outside base directory' });
+        return;
+      }
+
       if (!existsSync(targetPath) || !statSync(targetPath).isDirectory()) {
         res.status(400).json({ error: 'Invalid directory' });
         return;
@@ -159,6 +167,14 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
       }
 
       const filePath = resolve(file);
+
+      try {
+        assertWithinBase(filePath, baseDir);
+      } catch {
+        res.status(403).json({ error: 'Access denied: path outside base directory' });
+        return;
+      }
+
       if (!existsSync(filePath)) {
         res.status(400).json({ error: 'File not found' });
         return;
