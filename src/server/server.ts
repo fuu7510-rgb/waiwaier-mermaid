@@ -26,7 +26,7 @@ interface ServerState {
   layoutSaving: boolean;
 }
 
-export function startServer(options: ServerOptions): Promise<{ url: string }> {
+export function startServer(options: ServerOptions): Promise<{ url: string; close: () => Promise<void> }> {
   const { port, baseDir } = options;
   const app = express();
   const httpServer = createServer(app);
@@ -315,7 +315,14 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
       } else {
         console.log('Mode: File picker (no file specified)');
       }
-      resolve({ url });
+      resolve({
+        url,
+        close: async () => {
+          if (state.fileWatcher) await state.fileWatcher.stop();
+          if (state.layoutWatcher) await state.layoutWatcher.stop();
+          await new Promise<void>((res, rej) => httpServer.close((err) => err ? rej(err) : res()));
+        },
+      });
     });
   });
 }

@@ -141,7 +141,7 @@ server.tool(
 );
 
 // --- ツール: ビューワーを起動 ---
-let activeViewer: { url: string; port: number } | null = null;
+let activeViewer: { url: string; port: number; close: () => Promise<void> } | null = null;
 
 server.tool(
   'open-viewer',
@@ -172,8 +172,8 @@ server.tool(
     }
 
     try {
-      const { url } = await startServer({ diagramPath, baseDir, port });
-      activeViewer = { url, port };
+      const { url, close } = await startServer({ diagramPath, baseDir, port });
+      activeViewer = { url, port, close };
 
       // ブラウザを自動で開く
       try {
@@ -190,11 +190,38 @@ server.tool(
   },
 );
 
+// --- ツール: ビューワーを停止 ---
+server.tool(
+  'close-viewer',
+  '起動中のER図ビューワーを停止する',
+  {},
+  async () => {
+    if (!activeViewer) {
+      return { content: [{ type: 'text' as const, text: 'ビューワーは起動していません' }] };
+    }
+    const url = activeViewer.url;
+    await activeViewer.close();
+    activeViewer = null;
+    return { content: [{ type: 'text' as const, text: `ビューワーを停止しました: ${url}` }] };
+  },
+);
+
 // --- 起動 ---
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error('Mermaid ER Viewer MCP server started (stdio)');
+
+  // プロセス終了時にビューワーを自動停止
+  const cleanup = async () => {
+    if (activeViewer) {
+      await activeViewer.close().catch(() => {});
+      activeViewer = null;
+    }
+  };
+  process.on('SIGINT', () => { cleanup().then(() => process.exit(0)); });
+  process.on('SIGTERM', () => { cleanup().then(() => process.exit(0)); });
+  process.on('exit', () => { /* sync cleanup is limited, but process will die anyway */ });
 }
 
 main().catch((err) => {
