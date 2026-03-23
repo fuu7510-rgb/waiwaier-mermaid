@@ -25,7 +25,14 @@ Claude Code用MCPサーバーとしても動作する。
   `npx -y -p mermaid-er-viewer mermaid-er-viewer-mcp`
 
 
-## 注意点
+## .mmdファイルの原則
+- **Mermaid標準のER図構文のみ使用すること**。独自拡張構文を書き込まない
+- このツールはClaude Codeが標準Mermaidを理解・閲覧するための補助ツール
+- 日本語ラベル・レイアウト位置などのメタデータは .layout.json に保存する
+- MCPの `save-layout` ツールでラベルを設定するのが正しいやり方
+- .mmdファイルは他のMermaidツール（公式Live Editor等）でも開ける状態を維持する
+
+## 実装上の注意
 - サーバーは .mmd を読み取り専用。書き込むのは .layout.json のみ
 - Entity.label（["..."]構文）は layout.labels のフォールバックとして表示される
 - PUT /api/layout 後は必ず WebSocket で layout-changed をブロードキャストする
