@@ -19,7 +19,7 @@ export interface ServerOptions {
   port: number;
 }
 
-interface ServerState {
+export interface ServerState {
   diagramPath: string | null;
   layoutStore: LayoutStore | null;
   fileWatcher: FileWatcher | null;
@@ -27,68 +27,56 @@ interface ServerState {
   layoutSaving: boolean;
 }
 
-export function startServer(options: ServerOptions): Promise<{ url: string; close: () => Promise<void> }> {
-  const { port, baseDir } = options;
-  const app = express();
-  const httpServer = createServer(app);
-  const wss = new WebSocketServer({ noServer: true });
+interface CreateAppOptions {
+  baseDir: string;
+  state?: ServerState;
+  clientDir?: string;
+  broadcast?: (message: object) => void;
+  startLayoutWatcher?: () => void;
+}
 
-  const state: ServerState = {
-    diagramPath: options.diagramPath,
-    layoutStore: options.diagramPath ? new LayoutStore(options.diagramPath) : null,
+/**
+ * Express appを生成しルートを登録する。
+ * supertestなどテスト用途でサーバー起動なしに利用できる。
+ */
+export function createApp(baseDirOrOptions: string | CreateAppOptions): express.Express {
+  const opts: CreateAppOptions = typeof baseDirOrOptions === 'string'
+    ? { baseDir: baseDirOrOptions }
+    : baseDirOrOptions;
+
+  const { baseDir } = opts;
+  const state: ServerState = opts.state ?? {
+    diagramPath: null,
+    layoutStore: null,
     fileWatcher: null,
     layoutWatcher: null,
     layoutSaving: false,
   };
+  const broadcast = opts.broadcast ?? (() => {});
+  const startLayoutWatcher = opts.startLayoutWatcher ?? (() => {});
 
-  function startLayoutWatcher(): void {
-    if (state.layoutWatcher) return;
-    if (!state.layoutStore) return;
-    state.layoutWatcher = new FileWatcher(state.layoutStore.getLayoutPath());
-    state.layoutWatcher.onChange(() => {
-      if (state.layoutSaving) return; // 自身の保存は無視
-      broadcast({ type: 'layout-changed' });
-    });
-    state.layoutWatcher.start();
-  }
-
-  // Start file watcher if we have a diagram
-  if (state.diagramPath) {
-    state.fileWatcher = new FileWatcher(state.diagramPath);
-    state.fileWatcher.onChange(() => {
-      broadcast({ type: 'file-changed' });
-    });
-    state.fileWatcher.start();
-    startLayoutWatcher();
-    addToRecent(state.diagramPath);
-  }
-
-  // Handle WebSocket upgrade manually so it doesn't bind to the server before listen
-  httpServer.on('upgrade', (request, socket, head) => {
-    wss.handleUpgrade(request, socket, head, (ws) => {
-      wss.emit('connection', ws, request);
-    });
-  });
-
+  const app = express();
   app.use(express.json());
 
-  // Serve static client files (disable default index so we can route / ourselves)
-  const clientDir = join(__dirname, '..', 'client');
-  app.use(express.static(clientDir, { index: false }));
+  // Serve static client files only when clientDir is provided (skip in test)
+  if (opts.clientDir) {
+    const clientDir = opts.clientDir;
+    app.use(express.static(clientDir, { index: false }));
 
-  // GET / - Route to picker or viewer based on state
-  app.get('/', (_req, res) => {
-    if (state.diagramPath) {
+    // GET / - Route to picker or viewer based on state
+    app.get('/', (_req, res) => {
+      if (state.diagramPath) {
+        res.sendFile(join(clientDir, 'index.html'));
+      } else {
+        res.sendFile(join(clientDir, 'picker.html'));
+      }
+    });
+
+    // GET /viewer - Always serve the viewer page
+    app.get('/viewer', (_req, res) => {
       res.sendFile(join(clientDir, 'index.html'));
-    } else {
-      res.sendFile(join(clientDir, 'picker.html'));
-    }
-  });
-
-  // GET /viewer - Always serve the viewer page
-  app.get('/viewer', (_req, res) => {
-    res.sendFile(join(clientDir, 'index.html'));
-  });
+    });
+  }
 
   // GET /api/status - Return current state
   app.get('/api/status', (_req, res) => {
@@ -298,10 +286,21 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
     }
   });
 
-  // WebSocket: notify clients on file change
-  wss.on('connection', (ws) => {
-    ws.send(JSON.stringify({ type: 'connected' }));
-  });
+  return app;
+}
+
+export function startServer(options: ServerOptions): Promise<{ url: string; close: () => Promise<void> }> {
+  const { port, baseDir } = options;
+  const httpServer = createServer();
+  const wss = new WebSocketServer({ noServer: true });
+
+  const state: ServerState = {
+    diagramPath: options.diagramPath,
+    layoutStore: options.diagramPath ? new LayoutStore(options.diagramPath) : null,
+    fileWatcher: null,
+    layoutWatcher: null,
+    layoutSaving: false,
+  };
 
   function broadcast(message: object): void {
     const data = JSON.stringify(message);
@@ -311,6 +310,51 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
       }
     });
   }
+
+  function startLayoutWatcher(): void {
+    if (state.layoutWatcher) return;
+    if (!state.layoutStore) return;
+    state.layoutWatcher = new FileWatcher(state.layoutStore.getLayoutPath());
+    state.layoutWatcher.onChange(() => {
+      if (state.layoutSaving) return; // 自身の保存は無視
+      broadcast({ type: 'layout-changed' });
+    });
+    state.layoutWatcher.start();
+  }
+
+  // Start file watcher if we have a diagram
+  if (state.diagramPath) {
+    state.fileWatcher = new FileWatcher(state.diagramPath);
+    state.fileWatcher.onChange(() => {
+      broadcast({ type: 'file-changed' });
+    });
+    state.fileWatcher.start();
+    startLayoutWatcher();
+    addToRecent(state.diagramPath);
+  }
+
+  // Handle WebSocket upgrade manually so it doesn't bind to the server before listen
+  httpServer.on('upgrade', (request, socket, head) => {
+    wss.handleUpgrade(request, socket, head, (ws) => {
+      wss.emit('connection', ws, request);
+    });
+  });
+
+  const clientDir = join(__dirname, '..', 'client');
+  const app = createApp({
+    baseDir,
+    state,
+    clientDir,
+    broadcast,
+    startLayoutWatcher,
+  });
+
+  httpServer.on('request', app);
+
+  // WebSocket: notify clients on file change
+  wss.on('connection', (ws) => {
+    ws.send(JSON.stringify({ type: 'connected' }));
+  });
 
   return new Promise((resolve, reject) => {
     httpServer.on('error', (err: NodeJS.ErrnoException) => {
