@@ -1,17 +1,23 @@
 import type { ERDiagramJSON, Entity, Relationship } from '../parser/types.js';
 import {
   computeConnectorPath,
+  assignPorts,
   pathToD,
   sideToAngle,
   type EntityRect,
+  type PortAssignment,
 } from './connector.js';
 import { drawCardinality } from './cardinality.js';
 
 const SVG_NS = 'http://www.w3.org/2000/svg';
-const HEADER_HEIGHT = 32;
-const ROW_HEIGHT = 24;
-const PADDING_X = 12;
+const BASE_HEADER_HEIGHT = 38;
+const BASE_ROW_HEIGHT = 30;
+const PADDING_X = 14;
 const MIN_WIDTH = 180;
+
+// コンパクトモード用定数
+const BASE_COMPACT_HEADER_HEIGHT = 48;
+const BASE_COMPACT_LABEL_EXTRA = 28;
 
 export interface EntitySize {
   width: number;
@@ -37,6 +43,10 @@ export class Renderer {
   private visibleEntities: Set<string> = new Set();
   private visibleConnectors: Set<number> = new Set();
   private viewportBounds: { minX: number; minY: number; maxX: number; maxY: number } | null = null;
+  // コンパクトモード: テーブル名のみ表示
+  private _compactMode = false;
+  // フォントスケール
+  private _fontScale = 1;
 
   constructor(svg: SVGSVGElement, viewport: SVGGElement) {
     this.svg = svg;
@@ -56,8 +66,38 @@ export class Renderer {
     return this.entitiesGroup;
   }
 
+  get compactMode(): boolean {
+    return this._compactMode;
+  }
+
+  set compactMode(value: boolean) {
+    this._compactMode = value;
+  }
+
+  get fontScale(): number {
+    return this._fontScale;
+  }
+
+  set fontScale(value: number) {
+    if (this._fontScale !== value) {
+      this._fontScale = value;
+      this.measurementCache.clear();
+      document.documentElement.style.setProperty('--font-scale', String(value));
+    }
+  }
+
+  private get HEADER_HEIGHT(): number { return BASE_HEADER_HEIGHT * this._fontScale; }
+  private get ROW_HEIGHT(): number { return BASE_ROW_HEIGHT * this._fontScale; }
+  private get COMPACT_HEADER_HEIGHT(): number { return BASE_COMPACT_HEADER_HEIGHT * this._fontScale; }
+  private get COMPACT_LABEL_EXTRA(): number { return BASE_COMPACT_LABEL_EXTRA * this._fontScale; }
+
+  /** layout.labels → Entity.label の順でフォールバック */
+  private resolveLabel(entity: Entity): string {
+    return this.labels[entity.name] || entity.label || '';
+  }
+
   private computeMeasurementKey(entity: Entity): string {
-    const label = this.labels[entity.name] || '';
+    const label = this.resolveLabel(entity);
     const parts = [entity.name, label];
     for (const attr of entity.attributes) {
       parts.push(attr.type, attr.name, attr.comment || '');
@@ -153,10 +193,67 @@ export class Renderer {
     g.setAttribute('data-entity', entity.name);
     g.setAttribute('transform', `translate(${x}, ${y})`);
 
-    const label = this.labels[entity.name];
-    const headerHeight = label ? HEADER_HEIGHT + 12 : HEADER_HEIGHT;
+    const label = this.resolveLabel(entity);
+    const headerHeight = label ? this.HEADER_HEIGHT + 16 * this._fontScale : this.HEADER_HEIGHT;
+
+    if (this._compactMode) {
+      // コンパクトモード: テーブル名のみ大きく表示
+      g.classList.add('compact');
+      const compactHeaderHeight = label
+        ? this.COMPACT_HEADER_HEIGHT + this.COMPACT_LABEL_EXTRA
+        : this.COMPACT_HEADER_HEIGHT;
+      const width = this.measureCompactLayout(entity);
+
+      const headerRect = document.createElementNS(SVG_NS, 'rect');
+      headerRect.classList.add('entity-header');
+      headerRect.setAttribute('width', String(width));
+      headerRect.setAttribute('height', String(compactHeaderHeight));
+      headerRect.setAttribute('rx', '6');
+      headerRect.setAttribute('ry', '6');
+      g.appendChild(headerRect);
+
+      if (label) {
+        const headerName = document.createElementNS(SVG_NS, 'text');
+        headerName.classList.add('entity-name');
+        headerName.setAttribute('x', String(width / 2));
+        headerName.setAttribute('y', String(28 * this._fontScale));
+        headerName.setAttribute('text-anchor', 'middle');
+        headerName.textContent = entity.name;
+        g.appendChild(headerName);
+
+        const headerLabel = document.createElementNS(SVG_NS, 'text');
+        headerLabel.classList.add('entity-label');
+        headerLabel.setAttribute('x', String(width / 2));
+        headerLabel.setAttribute('y', String(54 * this._fontScale));
+        headerLabel.setAttribute('text-anchor', 'middle');
+        headerLabel.textContent = label;
+        g.appendChild(headerLabel);
+      } else {
+        const headerText = document.createElementNS(SVG_NS, 'text');
+        headerText.classList.add('entity-name');
+        headerText.setAttribute('x', String(width / 2));
+        headerText.setAttribute('y', String(32 * this._fontScale));
+        headerText.setAttribute('text-anchor', 'middle');
+        headerText.textContent = entity.name;
+        g.appendChild(headerText);
+      }
+
+      const outline = document.createElementNS(SVG_NS, 'rect');
+      outline.classList.add('entity-outline');
+      outline.setAttribute('width', String(width));
+      outline.setAttribute('height', String(compactHeaderHeight));
+      outline.setAttribute('rx', '6');
+      outline.setAttribute('ry', '6');
+      g.appendChild(outline);
+
+      this.entitiesGroup.appendChild(g);
+      this.entitySizes.set(entity.name, { width, height: compactHeaderHeight });
+      return;
+    }
+
+    // 通常モード: 全カラム表示
     const attrCount = entity.attributes.length;
-    const bodyHeight = Math.max(attrCount * ROW_HEIGHT, ROW_HEIGHT);
+    const bodyHeight = Math.max(attrCount * this.ROW_HEIGHT, this.ROW_HEIGHT);
     const totalHeight = headerHeight + bodyHeight;
 
     // Measure text widths to determine column layout
@@ -178,7 +275,7 @@ export class Renderer {
       const headerName = document.createElementNS(SVG_NS, 'text');
       headerName.classList.add('entity-name');
       headerName.setAttribute('x', String(width / 2));
-      headerName.setAttribute('y', '15');
+      headerName.setAttribute('y', String(20 * this._fontScale));
       headerName.setAttribute('text-anchor', 'middle');
       headerName.textContent = entity.name;
       g.appendChild(headerName);
@@ -186,7 +283,7 @@ export class Renderer {
       const headerLabel = document.createElementNS(SVG_NS, 'text');
       headerLabel.classList.add('entity-label');
       headerLabel.setAttribute('x', String(width / 2));
-      headerLabel.setAttribute('y', '28');
+      headerLabel.setAttribute('y', String(36 * this._fontScale));
       headerLabel.setAttribute('text-anchor', 'middle');
       headerLabel.textContent = label;
       g.appendChild(headerLabel);
@@ -194,7 +291,7 @@ export class Renderer {
       const headerText = document.createElementNS(SVG_NS, 'text');
       headerText.classList.add('entity-name');
       headerText.setAttribute('x', String(width / 2));
-      headerText.setAttribute('y', '21');
+      headerText.setAttribute('y', String(26 * this._fontScale));
       headerText.setAttribute('text-anchor', 'middle');
       headerText.textContent = entity.name;
       g.appendChild(headerText);
@@ -238,7 +335,7 @@ export class Renderer {
     entity.attributes.forEach((attr, i) => {
       const rowG = document.createElementNS(SVG_NS, 'g');
       rowG.classList.add('attribute');
-      rowG.setAttribute('transform', `translate(0, ${headerHeight + i * ROW_HEIGHT})`);
+      rowG.setAttribute('transform', `translate(0, ${headerHeight + i * this.ROW_HEIGHT})`);
 
       // Separator line
       if (i > 0) {
@@ -251,12 +348,14 @@ export class Renderer {
         rowG.appendChild(sep);
       }
 
+      const rowTextY = String(21 * this._fontScale);
+
       // Key badges
       if (attr.keys.length > 0) {
         const keyText = document.createElementNS(SVG_NS, 'text');
         keyText.classList.add('attr-key');
         keyText.setAttribute('x', String(PADDING_X));
-        keyText.setAttribute('y', '17');
+        keyText.setAttribute('y', rowTextY);
         keyText.textContent = attr.keys.join(',');
         rowG.appendChild(keyText);
       }
@@ -265,7 +364,7 @@ export class Renderer {
       const typeText = document.createElementNS(SVG_NS, 'text');
       typeText.classList.add('attr-type');
       typeText.setAttribute('x', String(typeColStart));
-      typeText.setAttribute('y', '17');
+      typeText.setAttribute('y', rowTextY);
       typeText.textContent = attr.type;
       rowG.appendChild(typeText);
 
@@ -273,7 +372,7 @@ export class Renderer {
       const nameText = document.createElementNS(SVG_NS, 'text');
       nameText.classList.add('attr-name');
       nameText.setAttribute('x', String(nameColStart));
-      nameText.setAttribute('y', '17');
+      nameText.setAttribute('y', rowTextY);
       nameText.textContent = attr.name;
       rowG.appendChild(nameText);
 
@@ -282,7 +381,7 @@ export class Renderer {
         const commentText = document.createElementNS(SVG_NS, 'text');
         commentText.classList.add('attr-comment');
         commentText.setAttribute('x', String(width - PADDING_X));
-        commentText.setAttribute('y', '17');
+        commentText.setAttribute('y', rowTextY);
         commentText.setAttribute('text-anchor', 'end');
         commentText.textContent = attr.comment;
         rowG.appendChild(commentText);
@@ -300,32 +399,33 @@ export class Renderer {
     width: number;
     nameColStart: number;
   } {
-    const key = this.computeMeasurementKey(entity);
+    const key = this.computeMeasurementKey(entity) + '\x00' + this._fontScale;
     const cached = this.measurementCache.get(key);
     if (cached) return cached;
 
     const tempText = this.getMeasureText();
+    const s = this._fontScale;
 
     let maxWidth = 0;
 
     // Measure entity name (centered)
     tempText.style.fontWeight = '600';
-    tempText.style.fontSize = '14px';
+    tempText.style.fontSize = `${18 * s}px`;
     tempText.textContent = entity.name;
     maxWidth = Math.max(maxWidth, tempText.getComputedTextLength() + PADDING_X * 2);
 
     // Measure label if present
-    const label = this.labels[entity.name];
+    const label = this.resolveLabel(entity);
     if (label) {
-      tempText.style.fontWeight = 'normal';
-      tempText.style.fontSize = '11px';
+      tempText.style.fontWeight = '500';
+      tempText.style.fontSize = `${14 * s}px`;
       tempText.textContent = label;
       maxWidth = Math.max(maxWidth, tempText.getComputedTextLength() + PADDING_X * 2);
     }
 
     // Measure max type width to determine name column start
     tempText.style.fontWeight = 'normal';
-    tempText.style.fontSize = '13px';
+    tempText.style.fontSize = `${16 * s}px`;
     const keyColWidth = 40;
     const typeColStart = keyColWidth + 8;
     const typeGap = 10;
@@ -357,16 +457,44 @@ export class Renderer {
     return result;
   }
 
+  /** コンパクトモード用: エンティティ名のみで幅を計測 */
+  private measureCompactLayout(entity: Entity): number {
+    const tempText = this.getMeasureText();
+    const s = this._fontScale;
+    let maxWidth = 0;
+
+    // エンティティ名 (20px bold)
+    tempText.style.fontWeight = '600';
+    tempText.style.fontSize = `${20 * s}px`;
+    tempText.textContent = entity.name;
+    maxWidth = Math.max(maxWidth, tempText.getComputedTextLength() + PADDING_X * 2);
+
+    // ラベル (20px — コンパクトモードでは英語名と同じサイズ)
+    const label = this.resolveLabel(entity);
+    if (label) {
+      tempText.style.fontWeight = 'normal';
+      tempText.style.fontSize = `${20 * s}px`;
+      tempText.textContent = label;
+      maxWidth = Math.max(maxWidth, tempText.getComputedTextLength() + PADDING_X * 2);
+    }
+
+    return Math.max(MIN_WIDTH, maxWidth);
+  }
+
   private renderAllConnectors(relationships: Relationship[]): void {
     this.connectorsGroup.innerHTML = '';
     this.connectorElements.clear();
+
+    // ポート割当を事前計算
+    const portMap = assignPorts(relationships, (name) => this.getEntityRect(name));
 
     relationships.forEach((rel, index) => {
       const rectA = this.getEntityRect(rel.entityA);
       const rectB = this.getEntityRect(rel.entityB);
       if (!rectA || !rectB) return;
 
-      this.renderConnector(rel, index, rectA, rectB);
+      const ports = portMap.get(index);
+      this.renderConnector(rel, index, rectA, rectB, ports);
     });
   }
 
@@ -375,6 +503,7 @@ export class Renderer {
     relIndex: number,
     rectA: EntityRect,
     rectB: EntityRect,
+    ports?: PortAssignment,
   ): void {
     const g = document.createElementNS(SVG_NS, 'g');
     g.classList.add('connector');
@@ -382,7 +511,16 @@ export class Renderer {
     g.setAttribute('data-to', rel.entityB);
     g.setAttribute('data-rel-index', String(relIndex));
 
-    const connector = computeConnectorPath(rectA, rectB);
+    const connector = computeConnectorPath(rectA, rectB, ports?.portA, ports?.portB, ports?.midOffset);
+
+    // Hit area (太い透明パスでダブルクリックしやすくする)
+    const hitPath = document.createElementNS(SVG_NS, 'path');
+    hitPath.setAttribute('d', pathToD(connector.points));
+    hitPath.setAttribute('stroke', 'transparent');
+    hitPath.setAttribute('stroke-width', '16');
+    hitPath.setAttribute('fill', 'none');
+    hitPath.setAttribute('pointer-events', 'stroke');
+    g.appendChild(hitPath);
 
     // Draw the path
     const path = document.createElementNS(SVG_NS, 'path');
@@ -393,44 +531,33 @@ export class Renderer {
     }
     g.appendChild(path);
 
-    // Draw cardinality symbols
-    // CardinalityA is at the start (near entityA)
+    // Draw cardinality symbols at distributed port positions
     const startAngle = sideToAngle(connector.startSide);
-    // Flip: cardinality symbol points toward entity, so rotate 180 degrees
-    const cardAX =
-      connector.startSide === 'right' ? rectA.x + rectA.width :
-      connector.startSide === 'left' ? rectA.x :
-      rectA.x + rectA.width / 2;
-    const cardAY =
-      connector.startSide === 'bottom' ? rectA.y + rectA.height :
-      connector.startSide === 'top' ? rectA.y :
-      rectA.y + rectA.height / 2;
+    const cardAX = connector.portA.x;
+    const cardAY = connector.portA.y;
 
-    drawCardinality(g, rel.cardinalityA, cardAX, cardAY, startAngle, rel.identifying);
+    const compactScale = this._compactMode ? 1.8 : 1;
+    drawCardinality(g, rel.cardinalityA, cardAX, cardAY, startAngle, rel.identifying, compactScale);
 
-    // CardinalityB is at the end (near entityB)
     const endAngle = sideToAngle(connector.endSide);
-    const cardBX =
-      connector.endSide === 'right' ? rectB.x + rectB.width :
-      connector.endSide === 'left' ? rectB.x :
-      rectB.x + rectB.width / 2;
-    const cardBY =
-      connector.endSide === 'bottom' ? rectB.y + rectB.height :
-      connector.endSide === 'top' ? rectB.y :
-      rectB.y + rectB.height / 2;
+    const cardBX = connector.portB.x;
+    const cardBY = connector.portB.y;
 
-    drawCardinality(g, rel.cardinalityB, cardBX, cardBY, endAngle, rel.identifying);
+    drawCardinality(g, rel.cardinalityB, cardBX, cardBY, endAngle, rel.identifying, compactScale);
 
-    // Label
+    // Label (from .mmd file)
     if (rel.label) {
       const midIdx = Math.floor(connector.points.length / 2);
       const midPt = connector.points[midIdx];
       const prevPt = connector.points[Math.max(0, midIdx - 1)];
+      const midX = (midPt.x + prevPt.x) / 2;
+      const midY = (midPt.y + prevPt.y) / 2;
 
       const labelText = document.createElementNS(SVG_NS, 'text');
       labelText.classList.add('connector-label');
-      labelText.setAttribute('x', String((midPt.x + prevPt.x) / 2));
-      labelText.setAttribute('y', String((midPt.y + prevPt.y) / 2 - 8));
+      if (this._compactMode) labelText.classList.add('compact');
+      labelText.setAttribute('x', String(midX));
+      labelText.setAttribute('y', String(midY - 8 * compactScale));
       labelText.setAttribute('text-anchor', 'middle');
       labelText.textContent = rel.label;
       g.appendChild(labelText);
@@ -444,6 +571,14 @@ export class Renderer {
     if (!this.diagram) return;
     const relIndices = this.entityRelationshipIndex.get(entityName);
     if (!relIndices) return;
+
+    // 全リレーションに対してポート割当を再計算（O(R)で高速）
+    const portMap = assignPorts(
+      this.diagram.relationships,
+      (name) => this.getEntityRect(name),
+    );
+
+    // 影響するコネクタのみ DOM 更新
     const seen = new Set<number>();
     for (const index of relIndices) {
       if (seen.has(index)) continue;
@@ -454,7 +589,7 @@ export class Renderer {
       if (!rectA || !rectB) continue;
       const old = this.connectorElements.get(index);
       if (old) old.remove();
-      this.renderConnector(rel, index, rectA, rectB);
+      this.renderConnector(rel, index, rectA, rectB, portMap.get(index));
     }
   }
 

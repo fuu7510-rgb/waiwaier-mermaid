@@ -1,6 +1,6 @@
 {
   "name": "mermaid-er-viewer",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Mermaid ER Diagram Viewer with draggable entities and sidecar layout files",
   "type": "module",
   "bin": {
