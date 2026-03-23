@@ -4,6 +4,7 @@ import { Renderer } from './renderer.js';
 import { DragHandler } from './drag.js';
 import { autoLayoutNewEntities, autoLayoutAll } from './layout.js';
 import { HistoryManager } from './history.js';
+import { createPanZoomState, setupPanZoom, MIN_ZOOM, MAX_ZOOM } from './pan-zoom.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -14,17 +15,7 @@ let saveTimer: number | null = null;
 const history = new HistoryManager(50);
 
 // Pan & Zoom state
-let panX = 0;
-let panY = 0;
-let zoom = 1;
-let isPanning = false;
-let panStartX = 0;
-let panStartY = 0;
-let panStartPanX = 0;
-let panStartPanY = 0;
-
-const MIN_ZOOM = 0.1;
-const MAX_ZOOM = 5;
+const pz = createPanZoomState();
 
 // Font scale
 const FONT_SCALE_STEP = 0.1;
@@ -56,7 +47,7 @@ function setActiveEntities(positions: Record<string, { x: number; y: number }>):
 /** 現在のモードのキャンバス状態を保存する */
 function saveActiveCanvas(): void {
   if (!layout) return;
-  const canvas = { panX, panY, zoom };
+  const canvas = { panX: pz.panX, panY: pz.panY, zoom: pz.zoom };
   if (renderer.compactMode) {
     layout.compactCanvas = canvas;
   } else {
@@ -80,13 +71,13 @@ function getViewportGroup(): SVGGElement {
 
 function updateViewportTransform(): void {
   const vp = getViewportGroup();
-  vp.setAttribute('transform', `translate(${panX}, ${panY}) scale(${zoom})`);
-  dragHandler.setTransform(panX, panY, zoom);
+  vp.setAttribute('transform', `translate(${pz.panX}, ${pz.panY}) scale(${pz.zoom})`);
+  dragHandler.setTransform(pz.panX, pz.panY, pz.zoom);
 
   // ビューポートカリング
   const svg = getSvg();
   const rect = svg.getBoundingClientRect();
-  renderer.setViewportBounds(rect.width, rect.height, panX, panY, zoom);
+  renderer.setViewportBounds(rect.width, rect.height, pz.panX, pz.panY, pz.zoom);
   renderer.applyCulling();
 }
 
@@ -370,9 +361,9 @@ function showLabelEditor(entityName: string): void {
   if (!entityRect || !layout) return;
 
   // SVG座標 → 画面座標
-  const screenX = entityRect.x * zoom + panX + svgRect.left;
-  const screenY = entityRect.y * zoom + panY + svgRect.top;
-  const screenW = entityRect.width * zoom;
+  const screenX = entityRect.x * pz.zoom + pz.panX + svgRect.left;
+  const screenY = entityRect.y * pz.zoom + pz.panY + svgRect.top;
+  const screenW = entityRect.width * pz.zoom;
 
   const input = document.createElement('input');
   input.type = 'text';
@@ -435,9 +426,9 @@ function handleCompactToggle(): void {
   // 切替先モードのキャンバス状態を復元
   const canvas = activeCanvas();
   if (canvas) {
-    panX = canvas.panX;
-    panY = canvas.panY;
-    zoom = canvas.zoom;
+    pz.panX = canvas.panX;
+    pz.panY = canvas.panY;
+    pz.zoom = canvas.zoom;
   }
   updateViewportTransform();
 
@@ -514,116 +505,21 @@ function handleFitView(): void {
   const contentWidth = maxX - minX + 100;
   const contentHeight = maxY - minY + 100;
 
-  zoom = Math.min(
+  pz.zoom = Math.min(
     svgRect.width / contentWidth,
     svgRect.height / contentHeight,
     2,
   );
-  zoom = Math.max(zoom, MIN_ZOOM);
+  pz.zoom = Math.max(pz.zoom, MIN_ZOOM);
 
-  panX = (svgRect.width - contentWidth * zoom) / 2 - minX * zoom + 50 * zoom;
-  panY = (svgRect.height - contentHeight * zoom) / 2 - minY * zoom + 50 * zoom;
+  pz.panX = (svgRect.width - contentWidth * pz.zoom) / 2 - minX * pz.zoom + 50 * pz.zoom;
+  pz.panY = (svgRect.height - contentHeight * pz.zoom) / 2 - minY * pz.zoom + 50 * pz.zoom;
 
   updateViewportTransform();
   if (layout) {
     saveActiveCanvas();
     scheduleSaveLayout();
   }
-}
-
-function setupPanZoom(): void {
-  const svg = getSvg();
-
-  // Wheel event: Ctrl+wheel = zoom, plain wheel = pan
-  svg.addEventListener('wheel', (e) => {
-    e.preventDefault();
-
-    if (e.ctrlKey) {
-      // Ctrl+wheel (mouse scroll wheel or touchpad pinch) → Zoom
-      const delta = e.deltaY > 0 ? 0.9 : 1.1;
-      const newZoom = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom * delta));
-
-      // Zoom towards cursor position
-      const rect = svg.getBoundingClientRect();
-      const cursorX = e.clientX - rect.left;
-      const cursorY = e.clientY - rect.top;
-
-      panX = cursorX - (cursorX - panX) * (newZoom / zoom);
-      panY = cursorY - (cursorY - panY) * (newZoom / zoom);
-      zoom = newZoom;
-    } else {
-      // Plain wheel (mouse scroll or touchpad two-finger scroll) → Pan
-      panX -= e.deltaX;
-      panY -= e.deltaY;
-    }
-
-    updateViewportTransform();
-    if (layout) {
-      saveActiveCanvas();
-    }
-  }, { passive: false });
-
-  // Pan with middle mouse button or right-click drag
-  svg.addEventListener('mousedown', (e) => {
-    // Middle button or Ctrl+Left button for panning
-    if (e.button === 1 || (e.button === 0 && e.ctrlKey)) {
-      e.preventDefault();
-      isPanning = true;
-      panStartX = e.clientX;
-      panStartY = e.clientY;
-      panStartPanX = panX;
-      panStartPanY = panY;
-      svg.style.cursor = 'grabbing';
-    }
-  });
-
-  window.addEventListener('mousemove', (e) => {
-    if (!isPanning) return;
-    panX = panStartPanX + (e.clientX - panStartX);
-    panY = panStartPanY + (e.clientY - panStartY);
-    updateViewportTransform();
-  });
-
-  window.addEventListener('mouseup', (e) => {
-    if (isPanning) {
-      isPanning = false;
-      svg.style.cursor = '';
-      if (layout) {
-        saveActiveCanvas();
-        scheduleSaveLayout();
-      }
-    }
-  });
-
-  // Click on empty space to clear highlight
-  svg.addEventListener('click', (e) => {
-    const target = e.target as SVGElement;
-    if (!target.closest('.entity') && selectedEntity) {
-      clearHighlight();
-    }
-  });
-
-  // ダブルクリックでラベル編集
-  svg.addEventListener('dblclick', (e) => {
-    const target = e.target as SVGElement;
-
-    // エンティティのヘッダー → テーブルラベル編集
-    const entityG = target.closest('.entity') as SVGGElement | null;
-    if (entityG) {
-      if (!target.classList.contains('entity-header') &&
-          !target.classList.contains('entity-name') &&
-          !target.classList.contains('entity-label')) return;
-      const entityName = entityG.getAttribute('data-entity') || '';
-      if (!entityName || !layout) return;
-      e.preventDefault();
-      showLabelEditor(entityName);
-      return;
-    }
-
-  });
-
-  // Prevent context menu on SVG
-  svg.addEventListener('contextmenu', (e) => e.preventDefault());
 }
 
 function setupKeyboard(): void {
@@ -672,9 +568,9 @@ function setupKeyboard(): void {
     // 0/Home: Reset zoom
     if (e.key === '0' && (e.ctrlKey || e.metaKey)) {
       e.preventDefault();
-      zoom = 1;
-      panX = 0;
-      panY = 0;
+      pz.zoom = 1;
+      pz.panX = 0;
+      pz.panY = 0;
       updateViewportTransform();
     }
   });
@@ -702,11 +598,11 @@ function setupToolbar(): void {
   document.getElementById('btn-fit')?.addEventListener('click', handleFitView);
   document.getElementById('btn-auto-layout')?.addEventListener('click', handleAutoLayout);
   document.getElementById('btn-zoom-in')?.addEventListener('click', () => {
-    zoom = Math.min(MAX_ZOOM, zoom * 1.2);
+    pz.zoom = Math.min(MAX_ZOOM, pz.zoom * 1.2);
     updateViewportTransform();
   });
   document.getElementById('btn-zoom-out')?.addEventListener('click', () => {
-    zoom = Math.max(MIN_ZOOM, zoom / 1.2);
+    pz.zoom = Math.max(MIN_ZOOM, pz.zoom / 1.2);
     updateViewportTransform();
   });
   document.getElementById('btn-compact')?.addEventListener('click', handleCompactToggle);
@@ -795,7 +691,15 @@ async function init(): Promise<void> {
   dragHandler.setOnClick(handleEntityClick);
   dragHandler.attach();
 
-  setupPanZoom();
+  setupPanZoom(pz, {
+    svg,
+    getSelectedEntity: () => selectedEntity,
+    onTransformChange: updateViewportTransform,
+    onCanvasSave: () => { if (layout) saveActiveCanvas(); },
+    onCanvasSaveAndSchedule: () => { if (layout) { saveActiveCanvas(); scheduleSaveLayout(); } },
+    onClearHighlight: clearHighlight,
+    onEntityDblClick: (entityName) => { if (layout) showLabelEditor(entityName); },
+  });
   setupKeyboard();
   setupToolbar();
   setupWebSocket();
@@ -805,9 +709,9 @@ async function init(): Promise<void> {
   // Restore canvas position from layout
   const savedCanvas = activeCanvas();
   if (savedCanvas) {
-    panX = savedCanvas.panX;
-    panY = savedCanvas.panY;
-    zoom = savedCanvas.zoom;
+    pz.panX = savedCanvas.panX;
+    pz.panY = savedCanvas.panY;
+    pz.zoom = savedCanvas.zoom;
     updateViewportTransform();
   }
 }
