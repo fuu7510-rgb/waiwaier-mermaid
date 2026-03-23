@@ -70,4 +70,26 @@ copyFileSync(
   join(clientDistDir, 'picker.css')
 );
 
+// Build MCP server
+await esbuild.build({
+  entryPoints: ['src/mcp-server.ts'],
+  bundle: true,
+  platform: 'node',
+  target: 'node20',
+  format: 'esm',
+  outdir: 'dist/server',
+  outbase: 'src',
+  external: ['express', 'ws', 'chokidar', 'open', '@modelcontextprotocol/sdk', 'zod'],
+  banner: {
+    js: `#!/usr/bin/env node
+import { createRequire } from 'module';
+import { fileURLToPath as __fileURLToPath } from 'url';
+import { dirname as __dirname_fn } from 'path';
+const require = createRequire(import.meta.url);
+const __filename = __fileURLToPath(import.meta.url);
+const __dirname = __dirname_fn(__filename);
+`.trim(),
+  },
+});
+
 console.log('Build complete.');

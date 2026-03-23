@@ -37,7 +37,25 @@ erDiagram
         datetime paid_at "決済日時"
     }
 
+    CATEGORY {
+        int id PK "カテゴリID"
+        string name "カテゴリ名"
+        int parent_id FK "親カテゴリID"
+    }
+
+    REVIEW {
+        int id PK "レビューID"
+        int customer_id FK "顧客ID"
+        int product_id FK "商品ID"
+        int rating "評価"
+        string comment "コメント"
+        datetime created_at "投稿日時"
+    }
+
     CUSTOMER ||--o{ ORDER : "注文する"
     ORDER ||--|{ ORDER_ITEM : "含む"
     PRODUCT ||--o{ ORDER_ITEM : "購入される"
     ORDER ||--|| PAYMENT : "決済される"
+    CATEGORY ||--o{ PRODUCT : "分類する"
+    CUSTOMER ||--o{ REVIEW : "投稿する"
+    PRODUCT ||--o{ REVIEW : "評価される"

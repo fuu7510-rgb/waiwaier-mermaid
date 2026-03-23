@@ -1,21 +1,29 @@
 {
   "name": "mermaid-er-viewer",
-  "version": "1.0.0",
+  "version": "1.0.2",
   "description": "Mermaid ER Diagram Viewer with draggable entities and sidecar layout files",
   "type": "module",
   "bin": {
-    "mermaid-er-viewer": "./dist/server/index.js"
+    "mermaid-er-viewer": "./dist/server/index.js",
+    "mermaid-er-viewer-mcp": "./dist/server/mcp-server.js"
   },
+  "files": [
+    "dist/"
+  ],
   "scripts": {
+    "prepare": "node esbuild.config.mjs",
     "build": "node esbuild.config.mjs",
     "dev": "node esbuild.config.mjs && node dist/server/index.js",
-    "start": "node dist/server/index.js"
+    "start": "node dist/server/index.js",
+    "mcp": "node dist/server/mcp-server.js"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.27.1",
     "chokidar": "^4.0.0",
     "express": "^4.21.0",
     "open": "^10.1.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",

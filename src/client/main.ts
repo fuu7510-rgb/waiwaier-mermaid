@@ -26,6 +26,50 @@ let panStartPanY = 0;
 const MIN_ZOOM = 0.1;
 const MAX_ZOOM = 5;
 
+// Font scale
+const FONT_SCALE_STEP = 0.1;
+const MIN_FONT_SCALE = 0.5;
+const MAX_FONT_SCALE = 2.0;
+
+// ── モード別の位置・キャンバス取得ヘルパー ──
+
+/** 現在のモードに対応するエンティティ位置を返す（参照） */
+function activeEntities(): Record<string, { x: number; y: number }> {
+  if (!layout) return {};
+  if (renderer.compactMode) {
+    if (!layout.compactEntities) layout.compactEntities = {};
+    return layout.compactEntities;
+  }
+  return layout.entities;
+}
+
+/** 現在のモードのエンティティ位置を上書きする */
+function setActiveEntities(positions: Record<string, { x: number; y: number }>): void {
+  if (!layout) return;
+  if (renderer.compactMode) {
+    layout.compactEntities = positions;
+  } else {
+    layout.entities = positions;
+  }
+}
+
+/** 現在のモードのキャンバス状態を保存する */
+function saveActiveCanvas(): void {
+  if (!layout) return;
+  const canvas = { panX, panY, zoom };
+  if (renderer.compactMode) {
+    layout.compactCanvas = canvas;
+  } else {
+    layout.canvas = canvas;
+  }
+}
+
+/** 現在のモードのキャンバス状態を返す */
+function activeCanvas(): { panX: number; panY: number; zoom: number } | undefined {
+  if (!layout) return undefined;
+  return renderer.compactMode ? layout.compactCanvas : layout.canvas;
+}
+
 function getSvg(): SVGSVGElement {
   return document.getElementById('er-svg') as unknown as SVGSVGElement;
 }
@@ -46,18 +90,57 @@ function updateViewportTransform(): void {
   renderer.applyCulling();
 }
 
+async function flushSaveLayout(): Promise<void> {
+  if (saveTimer !== null) {
+    clearTimeout(saveTimer);
+    saveTimer = null;
+    if (layout) {
+      try {
+        await saveLayout(layout);
+      } catch {
+        // ignore
+      }
+    }
+  }
+}
+
 async function loadAndRender(): Promise<void> {
   try {
+    // 未保存のレイアウトを先にディスクに書き込む
+    await flushSaveLayout();
+
     diagram = await fetchDiagram();
     layout = await fetchLayout();
 
-    // Auto-layout new entities
+    // Auto-layout new entities (通常モード)
     layout = autoLayoutNewEntities(diagram, layout);
 
-    renderer.render(diagram, layout.entities, layout.labels);
+    // コンパクトモード中なら compactEntities をダイアグラムと同期
+    if (renderer.compactMode) {
+      if (!layout.compactEntities) {
+        // compactEntities が未保存（タイミング等）→ 通常位置からコピー
+        layout.compactEntities = JSON.parse(JSON.stringify(layout.entities));
+      } else {
+        const diagramNames = new Set(Object.keys(diagram.entities));
+        for (const name of diagramNames) {
+          if (!layout.compactEntities[name]) {
+            layout.compactEntities[name] = layout.entities[name]
+              ? { ...layout.entities[name] }
+              : { x: 0, y: 0 };
+          }
+        }
+        for (const name of Object.keys(layout.compactEntities)) {
+          if (!diagramNames.has(name)) {
+            delete layout.compactEntities[name];
+          }
+        }
+      }
+    }
+
+    renderer.render(diagram, activeEntities(), layout.labels);
     updateViewportTransform();
 
-    history.init(layout.entities);
+    history.init(activeEntities());
     updateUndoRedoButtons();
 
     // Clear error
@@ -92,8 +175,8 @@ function scheduleSaveLayout(): void {
 
 function handleDragEnd(entityName: string, x: number, y: number): void {
   if (!layout) return;
-  layout.entities[entityName] = { x, y };
-  history.push(layout.entities);
+  activeEntities()[entityName] = { x, y };
+  history.push(activeEntities());
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -275,11 +358,107 @@ function showToast(msg: string): void {
   }, 1500);
 }
 
+// ── ラベル編集（ダブルクリック） ──
+
+function showLabelEditor(entityName: string): void {
+  // 既に開いている場合は閉じる
+  document.getElementById('label-editor')?.remove();
+
+  const svg = getSvg();
+  const svgRect = svg.getBoundingClientRect();
+  const entityRect = renderer.getEntityRect(entityName);
+  if (!entityRect || !layout) return;
+
+  // SVG座標 → 画面座標
+  const screenX = entityRect.x * zoom + panX + svgRect.left;
+  const screenY = entityRect.y * zoom + panY + svgRect.top;
+  const screenW = entityRect.width * zoom;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.id = 'label-editor';
+  input.value = layout.labels?.[entityName] || '';
+  input.placeholder = '日本語名を入力…';
+  input.style.position = 'fixed';
+  input.style.left = `${screenX}px`;
+  input.style.top = `${screenY}px`;
+  input.style.width = `${Math.max(screenW, 200)}px`;
+
+  document.body.appendChild(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  function commit(): void {
+    if (done) return;
+    done = true;
+    const value = input.value.trim();
+    if (!layout!.labels) layout!.labels = {};
+    if (value) {
+      layout!.labels![entityName] = value;
+    } else {
+      delete layout!.labels![entityName];
+    }
+    input.remove();
+    if (diagram) {
+      renderer.render(diagram, activeEntities(), layout!.labels);
+      updateViewportTransform();
+      scheduleSaveLayout();
+    }
+  }
+
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { done = true; input.remove(); }
+  });
+  input.addEventListener('blur', () => commit());
+}
+
+function handleCompactToggle(): void {
+  if (!diagram || !layout) return;
+
+  // 現在のモードのキャンバス状態を保存
+  saveActiveCanvas();
+
+  // モード切替
+  renderer.compactMode = !renderer.compactMode;
+
+  // コンパクト位置が未初期化なら通常位置からコピー
+  if (renderer.compactMode && !layout.compactEntities) {
+    layout.compactEntities = JSON.parse(JSON.stringify(layout.entities));
+  }
+
+  // 切替先モードの位置でレンダリング
+  const positions = activeEntities();
+  renderer.render(diagram, positions, layout.labels);
+
+  // 切替先モードのキャンバス状態を復元
+  const canvas = activeCanvas();
+  if (canvas) {
+    panX = canvas.panX;
+    panY = canvas.panY;
+    zoom = canvas.zoom;
+  }
+  updateViewportTransform();
+
+  // Undo/Redo 履歴を切替先モード用に初期化
+  history.init(positions);
+  updateUndoRedoButtons();
+
+  const btn = document.getElementById('btn-compact');
+  if (btn) {
+    btn.classList.toggle('active', renderer.compactMode);
+  }
+
+  scheduleSaveLayout();
+}
+
 function handleAutoLayout(): void {
   if (!diagram || !layout) return;
-  layout.entities = autoLayoutAll(diagram);
-  renderer.render(diagram, layout.entities, layout.labels);
-  history.push(layout.entities);
+  const positions = autoLayoutAll(diagram);
+  setActiveEntities(positions);
+  renderer.render(diagram, activeEntities(), layout.labels);
+  history.push(activeEntities());
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -288,8 +467,8 @@ function handleUndo(): void {
   if (!diagram || !layout) return;
   const positions = history.undo();
   if (!positions) return;
-  layout.entities = positions;
-  renderer.render(diagram, layout.entities, layout.labels);
+  setActiveEntities(positions);
+  renderer.render(diagram, activeEntities(), layout.labels);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -298,8 +477,8 @@ function handleRedo(): void {
   if (!diagram || !layout) return;
   const positions = history.redo();
   if (!positions) return;
-  layout.entities = positions;
-  renderer.render(diagram, layout.entities, layout.labels);
+  setActiveEntities(positions);
+  renderer.render(diagram, activeEntities(), layout.labels);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -318,9 +497,10 @@ function handleFitView(): void {
   const svgRect = svg.getBoundingClientRect();
   if (Object.keys(diagram.entities).length === 0) return;
 
+  const positions = activeEntities();
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   let found = false;
-  for (const [name, pos] of Object.entries(layout.entities)) {
+  for (const [name, pos] of Object.entries(positions)) {
     const rect = renderer.getEntityRect(name);
     if (!rect) continue;
     found = true;
@@ -346,7 +526,7 @@ function handleFitView(): void {
 
   updateViewportTransform();
   if (layout) {
-    layout.canvas = { panX, panY, zoom };
+    saveActiveCanvas();
     scheduleSaveLayout();
   }
 }
@@ -379,7 +559,7 @@ function setupPanZoom(): void {
 
     updateViewportTransform();
     if (layout) {
-      layout.canvas = { panX, panY, zoom };
+      saveActiveCanvas();
     }
   }, { passive: false });
 
@@ -409,7 +589,7 @@ function setupPanZoom(): void {
       isPanning = false;
       svg.style.cursor = '';
       if (layout) {
-        layout.canvas = { panX, panY, zoom };
+        saveActiveCanvas();
         scheduleSaveLayout();
       }
     }
@@ -421,6 +601,25 @@ function setupPanZoom(): void {
     if (!target.closest('.entity') && selectedEntity) {
       clearHighlight();
     }
+  });
+
+  // ダブルクリックでラベル編集
+  svg.addEventListener('dblclick', (e) => {
+    const target = e.target as SVGElement;
+
+    // エンティティのヘッダー → テーブルラベル編集
+    const entityG = target.closest('.entity') as SVGGElement | null;
+    if (entityG) {
+      if (!target.classList.contains('entity-header') &&
+          !target.classList.contains('entity-name') &&
+          !target.classList.contains('entity-label')) return;
+      const entityName = entityG.getAttribute('data-entity') || '';
+      if (!entityName || !layout) return;
+      e.preventDefault();
+      showLabelEditor(entityName);
+      return;
+    }
+
   });
 
   // Prevent context menu on SVG
@@ -458,6 +657,13 @@ function setupKeyboard(): void {
       handleAutoLayout();
     }
 
+    // C: Compact mode toggle
+    if (e.key === 'c' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+      handleCompactToggle();
+    }
+
     // Escape: Clear highlight
     if (e.key === 'Escape') {
       clearHighlight();
@@ -474,6 +680,22 @@ function setupKeyboard(): void {
   });
 }
 
+function changeFontScale(delta: number): void {
+  const newScale = Math.round(Math.min(MAX_FONT_SCALE, Math.max(MIN_FONT_SCALE, renderer.fontScale + delta)) * 10) / 10;
+  renderer.fontScale = newScale;
+  localStorage.setItem('er-font-scale', String(newScale));
+  updateFontScaleLabel();
+  if (diagram && layout) {
+    renderer.render(diagram, activeEntities(), layout.labels);
+    updateViewportTransform();
+  }
+}
+
+function updateFontScaleLabel(): void {
+  const label = document.getElementById('font-size-label');
+  if (label) label.textContent = `${Math.round(renderer.fontScale * 100)}%`;
+}
+
 function setupToolbar(): void {
   document.getElementById('btn-undo')?.addEventListener('click', handleUndo);
   document.getElementById('btn-redo')?.addEventListener('click', handleRedo);
@@ -487,6 +709,9 @@ function setupToolbar(): void {
     zoom = Math.max(MIN_ZOOM, zoom / 1.2);
     updateViewportTransform();
   });
+  document.getElementById('btn-compact')?.addEventListener('click', handleCompactToggle);
+  document.getElementById('btn-font-down')?.addEventListener('click', () => changeFontScale(-FONT_SCALE_STEP));
+  document.getElementById('btn-font-up')?.addEventListener('click', () => changeFontScale(FONT_SCALE_STEP));
   document.getElementById('btn-back')?.addEventListener('click', async () => {
     try {
       await fetch('/api/close', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
@@ -504,6 +729,32 @@ function setupWebSocket(): void {
 
   ws.on('file-changed', async () => {
     await loadAndRender();
+  });
+
+  ws.on('layout-changed', async () => {
+    // 外部で .layout.json が編集された（別のAI等）
+    // 未保存分をフラッシュしてからディスクからフル更新する
+    if (!diagram || !layout) return;
+    try {
+      await flushSaveLayout();
+      const diskLayout = await fetchLayout();
+      layout.labels = diskLayout.labels;
+      layout.entities = diskLayout.entities;
+      layout.canvas = diskLayout.canvas;
+      if (diskLayout.compactEntities) {
+        layout.compactEntities = diskLayout.compactEntities;
+      }
+      if (diskLayout.compactCanvas) {
+        layout.compactCanvas = diskLayout.compactCanvas;
+      }
+      renderer.render(diagram, activeEntities(), layout.labels);
+      updateViewportTransform();
+      history.init(activeEntities());
+      updateUndoRedoButtons();
+      showToast('Layout updated (external edit)');
+    } catch {
+      // ignore
+    }
   });
 
   ws.on('file-closed', () => {
@@ -532,6 +783,13 @@ async function init(): Promise<void> {
   const viewport = getViewportGroup();
 
   renderer = new Renderer(svg, viewport);
+
+  // Restore font scale from localStorage
+  const savedFontScale = localStorage.getItem('er-font-scale');
+  if (savedFontScale) {
+    renderer.fontScale = parseFloat(savedFontScale);
+  }
+  updateFontScaleLabel();
   dragHandler = new DragHandler(svg, renderer);
   dragHandler.setOnDragEnd(handleDragEnd);
   dragHandler.setOnClick(handleEntityClick);
@@ -545,10 +803,11 @@ async function init(): Promise<void> {
   await loadAndRender();
 
   // Restore canvas position from layout
-  if (layout && layout.canvas) {
-    panX = layout.canvas.panX;
-    panY = layout.canvas.panY;
-    zoom = layout.canvas.zoom;
+  const savedCanvas = activeCanvas();
+  if (savedCanvas) {
+    panX = savedCanvas.panX;
+    panY = savedCanvas.panY;
+    zoom = savedCanvas.zoom;
     updateViewportTransform();
   }
 }

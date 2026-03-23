@@ -22,6 +22,8 @@ interface ServerState {
   diagramPath: string | null;
   layoutStore: LayoutStore | null;
   fileWatcher: FileWatcher | null;
+  layoutWatcher: FileWatcher | null;
+  layoutSaving: boolean;
 }
 
 export function startServer(options: ServerOptions): Promise<{ url: string }> {
@@ -34,7 +36,20 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
     diagramPath: options.diagramPath,
     layoutStore: options.diagramPath ? new LayoutStore(options.diagramPath) : null,
     fileWatcher: null,
+    layoutWatcher: null,
+    layoutSaving: false,
   };
+
+  function startLayoutWatcher(): void {
+    if (state.layoutWatcher) return;
+    if (!state.layoutStore) return;
+    state.layoutWatcher = new FileWatcher(state.layoutStore.getLayoutPath());
+    state.layoutWatcher.onChange(() => {
+      if (state.layoutSaving) return; // 自身の保存は無視
+      broadcast({ type: 'layout-changed' });
+    });
+    state.layoutWatcher.start();
+  }
 
   // Start file watcher if we have a diagram
   if (state.diagramPath) {
@@ -43,6 +58,7 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
       broadcast({ type: 'file-changed' });
     });
     state.fileWatcher.start();
+    startLayoutWatcher();
     addToRecent(state.diagramPath);
   }
 
@@ -153,9 +169,13 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
         return;
       }
 
-      // Stop existing watcher
+      // Stop existing watchers
       if (state.fileWatcher) {
         await state.fileWatcher.stop();
+      }
+      if (state.layoutWatcher) {
+        await state.layoutWatcher.stop();
+        state.layoutWatcher = null;
       }
 
       // Set up new state
@@ -166,6 +186,7 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
         broadcast({ type: 'file-changed' });
       });
       state.fileWatcher.start();
+      startLayoutWatcher();
       addToRecent(filePath);
 
       broadcast({ type: 'file-switched', file: filePath });
@@ -182,9 +203,13 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
       if (state.fileWatcher) {
         await state.fileWatcher.stop();
       }
+      if (state.layoutWatcher) {
+        await state.layoutWatcher.stop();
+      }
       state.diagramPath = null;
       state.layoutStore = null;
       state.fileWatcher = null;
+      state.layoutWatcher = null;
 
       broadcast({ type: 'file-closed' });
       res.json({ ok: true });
@@ -244,9 +269,15 @@ export function startServer(options: ServerOptions): Promise<{ url: string }> {
     }
     try {
       const layout = req.body as LayoutData;
+      state.layoutSaving = true;
       state.layoutStore.save(layout);
+      // ファイル監視の安定待ち (awaitWriteFinish: 200ms) より長めに保持
+      setTimeout(() => { state.layoutSaving = false; }, 500);
+      // API経由の保存でもクライアントに通知する
+      broadcast({ type: 'layout-changed' });
       res.json({ ok: true });
     } catch (err: any) {
+      state.layoutSaving = false;
       res.status(500).json({ error: err.message });
     }
   });
