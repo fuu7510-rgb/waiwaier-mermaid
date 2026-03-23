@@ -1,4 +1,7 @@
 // src/client/export.ts
+import { showToast } from './toast.js';
+
+const MAX_CANVAS_SIZE = 4096;
 
 export function exportSVG(svgElement: SVGSVGElement, filename: string): void {
   const clone = svgElement.cloneNode(true) as SVGSVGElement;
@@ -57,4 +60,64 @@ export function downloadBlob(blob: Blob, filename: string): void {
   a.download = filename;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+export async function exportPNG(svgElement: SVGSVGElement, filename: string): Promise<void> {
+  const blob = await svgToPngBlob(svgElement);
+  downloadBlob(blob, filename);
+}
+
+export async function copyToClipboard(svgElement: SVGSVGElement): Promise<void> {
+  const blob = await svgToPngBlob(svgElement);
+  await navigator.clipboard.write([
+    new ClipboardItem({ 'image/png': blob }),
+  ]);
+  showToast('クリップボードにコピーしました');
+}
+
+async function svgToPngBlob(svgElement: SVGSVGElement): Promise<Blob> {
+  const clone = svgElement.cloneNode(true) as SVGSVGElement;
+  const viewport = clone.querySelector('#viewport') as SVGGElement;
+  viewport.removeAttribute('transform');
+  inlineStyles(clone);
+
+  const bbox = calculateBBox(svgElement);
+  const padding = 20;
+  const w = bbox.width + padding * 2;
+  const h = bbox.height + padding * 2;
+
+  clone.setAttribute('viewBox', `${bbox.x - padding} ${bbox.y - padding} ${w} ${h}`);
+  clone.removeAttribute('id');
+
+  let scale = 2;  // Retina 2x
+  if (w * scale > MAX_CANVAS_SIZE || h * scale > MAX_CANVAS_SIZE) {
+    scale = Math.min(MAX_CANVAS_SIZE / w, MAX_CANVAS_SIZE / h);
+  }
+
+  clone.setAttribute('width', String(w));
+  clone.setAttribute('height', String(h));
+
+  const serializer = new XMLSerializer();
+  const svgString = serializer.serializeToString(clone);
+  const svgBlob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(svgBlob);
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = w * scale;
+      canvas.height = h * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error('Canvas toBlob failed'));
+      }, 'image/png');
+    };
+    img.onerror = reject;
+    img.src = url;
+  });
 }

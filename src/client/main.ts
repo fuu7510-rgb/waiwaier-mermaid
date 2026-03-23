@@ -11,7 +11,8 @@ import {
   clearHighlight,
 } from './highlight.js';
 import { showLabelEditor } from './label-editor.js';
-import { exportSVG } from './export.js';
+import { exportSVG, exportPNG, copyToClipboard } from './export.js';
+import { showToast } from './toast.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
@@ -191,25 +192,6 @@ const hlDeps = {
 
 function handleEntityClick(target: SVGElement, entityName: string): void {
   hlHandleEntityClick(hl, hlDeps, target, entityName);
-}
-
-let toastTimer: number | null = null;
-
-function showToast(msg: string): void {
-  let toast = document.getElementById('toast');
-  if (!toast) {
-    toast = document.createElement('div');
-    toast.id = 'toast';
-    document.body.appendChild(toast);
-  }
-  toast.textContent = msg;
-  toast.classList.add('visible');
-
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = window.setTimeout(() => {
-    toast!.classList.remove('visible');
-    toastTimer = null;
-  }, 1500);
 }
 
 // Label editor deps (lazy — uses current state at call time)
@@ -435,6 +417,13 @@ function setupToolbar(): void {
   document.getElementById('btn-export-svg')?.addEventListener('click', () => {
     const filename = layout?.diagramFile?.replace('.mmd', '.svg') || 'diagram.svg';
     exportSVG(getSvg(), filename);
+  });
+  document.getElementById('btn-export-png')?.addEventListener('click', () => {
+    const filename = layout?.diagramFile?.replace('.mmd', '.png') || 'diagram.png';
+    exportPNG(getSvg(), filename);
+  });
+  document.getElementById('btn-clipboard')?.addEventListener('click', () => {
+    copyToClipboard(getSvg());
   });
   document.getElementById('btn-back')?.addEventListener('click', async () => {
     try {

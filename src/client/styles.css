@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap');
 
 * {
   margin: 0;
@@ -7,6 +7,7 @@
 }
 
 :root {
+  --font-scale: 1;
   --bg: #1a1b26;
   --surface: #24283b;
   --surface-hover: #292e42;
@@ -34,7 +35,7 @@ html, body {
   overflow: hidden;
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Noto Sans JP', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
 }
 
 #toolbar {
@@ -101,6 +102,12 @@ html, body {
   background: var(--accent-muted);
 }
 
+.toolbar-buttons button.active {
+  background: var(--accent-muted);
+  border-color: var(--accent);
+  color: var(--text-bright);
+}
+
 .toolbar-buttons button:disabled {
   opacity: 0.35;
   cursor: not-allowed;
@@ -109,6 +116,21 @@ html, body {
 .toolbar-buttons button:disabled:hover {
   background: var(--surface);
   border-color: var(--border);
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 20px;
+  background: var(--border);
+  margin: 0 4px;
+}
+
+.font-size-label {
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 36px;
+  text-align: center;
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .toolbar-shortcuts {
@@ -165,17 +187,31 @@ html, body {
 
 .entity-name {
   fill: var(--header-text);
-  font-family: 'Inter', sans-serif;
+  font-family: 'Noto Sans JP', 'Inter', sans-serif;
   font-weight: 600;
-  font-size: 14px;
+  font-size: calc(18px * var(--font-scale));
 }
 
 .entity-label {
   fill: var(--header-text);
-  font-family: 'Inter', sans-serif;
-  font-weight: 400;
-  font-size: 11px;
-  opacity: 0.8;
+  font-family: 'Noto Sans JP', 'Inter', sans-serif;
+  font-weight: 500;
+  font-size: calc(14px * var(--font-scale));
+  opacity: 0.85;
+}
+
+/* Compact mode: larger text */
+.entity.compact .entity-name {
+  font-size: calc(20px * var(--font-scale));
+}
+
+.entity.compact .entity-label {
+  font-size: calc(20px * var(--font-scale));
+  opacity: 1;
+}
+
+.connector-label.compact {
+  font-size: calc(20px * var(--font-scale));
 }
 
 .entity-body {
@@ -208,34 +244,42 @@ html, body {
   fill: var(--key-color);
   font-family: 'JetBrains Mono', monospace;
   font-weight: 500;
-  font-size: 11px;
+  font-size: calc(14px * var(--font-scale));
 }
 
 .attr-type {
   fill: var(--type-color);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: calc(16px * var(--font-scale));
 }
 
 .attr-name {
   fill: var(--name-color);
   font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
+  font-size: calc(16px * var(--font-scale));
 }
 
 .attr-comment {
   fill: var(--comment-color);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
+  font-family: 'Noto Sans JP', 'JetBrains Mono', monospace;
+  font-size: calc(14px * var(--font-scale));
   font-style: italic;
 }
 
 /* Connector styles */
+.connector {
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
 .connector-line {
   fill: none;
   stroke: var(--connector-color);
   stroke-width: 1.5;
+  pointer-events: stroke;
 }
+
+/* 透明な太い当たり判定エリアはレンダラーで追加 */
 
 .connector-line.non-identifying {
   stroke-dasharray: 8 4;
@@ -243,8 +287,8 @@ html, body {
 
 .connector-label {
   fill: var(--connector-label);
-  font-family: 'Inter', sans-serif;
-  font-size: 12px;
+  font-family: 'Noto Sans JP', 'Inter', sans-serif;
+  font-size: calc(15px * var(--font-scale));
   font-style: italic;
 }
 
@@ -301,6 +345,24 @@ html, body {
 #toast.visible {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
+}
+
+/* Label editor (inline input) */
+#label-editor {
+  z-index: 200;
+  padding: 6px 10px;
+  border: 2px solid var(--accent);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-bright);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 14px;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+
+#label-editor::placeholder {
+  color: var(--text-muted);
 }
 
 /* ── Relationship highlight ── */
@@ -373,4 +435,24 @@ html, body {
 
 #er-svg.has-selection .connector.hl-connector .card-circle {
   stroke: var(--accent);
+}
+
+.toast {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: var(--accent);
+  color: var(--header-text, #fff);
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  z-index: 1000;
+  pointer-events: none;
+}
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
