@@ -15,7 +15,9 @@
     "build": "node esbuild.config.mjs",
     "dev": "node esbuild.config.mjs && node dist/server/index.js",
     "start": "node dist/server/index.js",
-    "mcp": "node dist/server/mcp-server.js"
+    "mcp": "node dist/server/mcp-server.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1",
@@ -28,8 +30,11 @@
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.0",
     "@types/ws": "^8.5.0",
     "esbuild": "^0.24.0",
-    "typescript": "^5.6.0"
+    "supertest": "^7.2.2",
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.0"
   }
 }
