@@ -538,6 +538,11 @@ function setupSearch(): void {
   });
 }
 
+function updateThemeButton(theme: string): void {
+  const btn = document.getElementById('btn-theme');
+  if (btn) btn.textContent = theme === 'dark' ? '🌙' : '☀️';
+}
+
 function setupToolbar(): void {
   document.getElementById('btn-undo')?.addEventListener('click', handleUndo);
   document.getElementById('btn-redo')?.addEventListener('click', handleRedo);
@@ -572,6 +577,13 @@ function setupToolbar(): void {
       // Ignore errors
     }
     window.location.href = '/';
+  });
+  document.getElementById('btn-theme')?.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+    updateThemeButton(next);
   });
 }
 
@@ -618,6 +630,11 @@ function setupWebSocket(): void {
 }
 
 async function init(): Promise<void> {
+  // Theme initialization
+  const savedTheme = localStorage.getItem('theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', savedTheme);
+  updateThemeButton(savedTheme);
+
   // Check if a file is active; if not, redirect to picker
   try {
     const statusRes = await fetch('/api/status');
