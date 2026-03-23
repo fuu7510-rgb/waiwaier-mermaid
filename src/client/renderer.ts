@@ -140,6 +140,10 @@ export class Renderer {
     return { x: pos.x, y: pos.y, width: size.width, height: size.height };
   }
 
+  getEntitySizes(): Map<string, EntitySize> {
+    return this.entitySizes;
+  }
+
   render(
     diagram: ERDiagramJSON,
     positions: Record<string, { x: number; y: number }>,

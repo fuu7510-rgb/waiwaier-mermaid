@@ -27,6 +27,7 @@
       <button id="btn-clipboard" title="クリップボードにコピー">Copy</button>
       <span class="toolbar-separator"></span>
       <button id="btn-search" title="検索 (Ctrl+F)">Search</button>
+      <button id="btn-minimap" title="ミニマップ">Map</button>
       <button id="btn-theme" title="テーマ切替">🌙</button>
     </div>
     <div class="toolbar-shortcuts">
@@ -38,6 +39,7 @@
       <kbd>L</kbd> Auto Layout
       <kbd>C</kbd> Compact
       <kbd>Ctrl+F</kbd> Search
+      <kbd>M</kbd> Map
       <kbd>Ctrl+0</kbd> Reset
     </div>
   </div>
@@ -51,6 +53,9 @@
   <svg id="er-svg" xmlns="http://www.w3.org/2000/svg">
     <g id="viewport"></g>
   </svg>
+  <div id="minimap">
+    <canvas width="200" height="150"></canvas>
+  </div>
   <script type="module" src="main.js"></script>
 </body>
 </html>

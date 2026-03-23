@@ -560,3 +560,21 @@ html, body {
 }
 .entity-dimmed { opacity: 0.15; transition: opacity 0.2s; }
 .connector-dimmed { opacity: 0.15; transition: opacity 0.2s; }
+
+/* Minimap */
+#minimap {
+  position: fixed;
+  bottom: 16px;
+  right: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+  opacity: 0.85;
+  z-index: 15;
+}
+#minimap canvas {
+  border-radius: 4px;
+  cursor: crosshair;
+  display: block;
+}

@@ -14,12 +14,14 @@ import { showLabelEditor } from './label-editor.js';
 import { exportSVG, exportPNG, copyToClipboard } from './export.js';
 import { showToast } from './toast.js';
 import { createSearchState, search, nextMatch, prevMatch } from './search.js';
+import { Minimap } from './minimap.js';
 import type { ERDiagramJSON, LayoutData } from '../parser/types.js';
 
 let diagram: ERDiagramJSON | null = null;
 let layout: LayoutData | null = null;
 let renderer: Renderer;
 let dragHandler: DragHandler;
+let minimap: Minimap;
 let saveTimer: number | null = null;
 const history = new HistoryManager(50);
 
@@ -94,6 +96,9 @@ function updateViewportTransform(): void {
   const rect = svg.getBoundingClientRect();
   renderer.setViewportBounds(rect.width, rect.height, pz.panX, pz.panY, pz.zoom);
   renderer.applyCulling();
+
+  // ミニマップ更新
+  if (minimap) minimap.scheduleRedraw();
 }
 
 async function flushSaveLayout(): Promise<void> {
@@ -377,6 +382,13 @@ function setupKeyboard(): void {
       handleCompactToggle();
     }
 
+    // M: Minimap toggle
+    if (e.key === 'm' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      const activeTag = document.activeElement?.tagName;
+      if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') return;
+      if (minimap) minimap.toggle();
+    }
+
     // Escape: Close search bar first, otherwise clear highlight
     if (e.key === 'Escape') {
       const searchBar = document.getElementById('search-bar');
@@ -578,6 +590,7 @@ function setupToolbar(): void {
     }
     window.location.href = '/';
   });
+  document.getElementById('btn-minimap')?.addEventListener('click', () => minimap.toggle());
   document.getElementById('btn-theme')?.addEventListener('click', () => {
     const current = document.documentElement.getAttribute('data-theme') || 'dark';
     const next = current === 'dark' ? 'light' : 'dark';
@@ -683,6 +696,25 @@ async function init(): Promise<void> {
       }
     },
   });
+
+  // Minimap
+  const minimapContainer = document.getElementById('minimap') as HTMLDivElement;
+  minimap = new Minimap(minimapContainer, {
+    getLayout: () => layout,
+    getEntitySizes: () => renderer.getEntitySizes(),
+    getPanZoom: () => ({ panX: pz.panX, panY: pz.panY, zoom: pz.zoom }),
+    getSvgSize: () => {
+      const rect = svg.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    },
+    onNavigate: (panX, panY) => {
+      pz.panX = panX;
+      pz.panY = panY;
+      updateViewportTransform();
+      minimap.scheduleRedraw();
+    },
+  });
+
   setupKeyboard();
   setupToolbar();
   setupSearch();
