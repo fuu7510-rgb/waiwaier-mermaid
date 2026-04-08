@@ -24,7 +24,6 @@ Claude Code用MCPサーバーとしても動作する。
 - bin名がパッケージ名と異なるため `-p` オプション必須:
   `npx -y -p mermaid-er-viewer mermaid-er-viewer-mcp`
 
-
 ## .mmdファイルの原則
 - **Mermaid標準のER図構文のみ使用すること**。独自拡張構文を書き込まない
 - エンティティの日本語名は Mermaid標準の `["..."]` 構文を使う: `USERS["ユーザー"] {`
