@@ -1,19 +1,19 @@
 erDiagram
-    CUSTOMER {
+    CUSTOMER["顧客"] {
         int id PK "顧客ID"
         string name "氏名"
         string email "メールアドレス"
         datetime created_at "登録日時"
     }
 
-    PRODUCT {
+    PRODUCT["商品"] {
         int id PK "商品ID"
         string name "商品名"
         decimal price "価格"
         int stock "在庫数"
     }
 
-    ORDER {
+    ORDER["注文"] {
         int id PK "注文ID"
         int customer_id FK "顧客ID"
         datetime ordered_at "注文日時"
@@ -21,7 +21,7 @@ erDiagram
         string status "ステータス"
     }
 
-    ORDER_ITEM {
+    ORDER_ITEM["注文明細"] {
         int id PK "明細ID"
         int order_id FK "注文ID"
         int product_id FK "商品ID"
@@ -29,7 +29,7 @@ erDiagram
         decimal unit_price "単価"
     }
 
-    PAYMENT {
+    PAYMENT["決済"] {
         int id PK "決済ID"
         int order_id FK "注文ID"
         string method "決済方法"
