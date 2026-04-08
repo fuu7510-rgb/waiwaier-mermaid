@@ -32,7 +32,6 @@ export class Renderer {
   private entitySizes: Map<string, EntitySize> = new Map();
   private entityPositions: Map<string, { x: number; y: number }> = new Map();
   private diagram: ERDiagramJSON | null = null;
-  private labels: Record<string, string> = {};
   private groups: LayoutData['groups'] = undefined;
   // 最適化1: コネクタ差分更新用インデックス
   private entityRelationshipIndex: Map<string, number[]> = new Map();
@@ -105,9 +104,9 @@ export class Renderer {
     return null;
   }
 
-  /** layout.labels → Entity.label の順でフォールバック */
+  /** Entity.label（.mmd の ["..."] 構文）をそのまま返す */
   private resolveLabel(entity: Entity): string {
-    return this.labels[entity.name] || entity.label || '';
+    return entity.label || '';
   }
 
   private computeMeasurementKey(entity: Entity): string {
@@ -157,16 +156,12 @@ export class Renderer {
   render(
     diagram: ERDiagramJSON,
     positions: Record<string, { x: number; y: number }>,
-    labels?: Record<string, string>,
     groups?: LayoutData['groups'],
   ): void {
-    const newLabels = labels || {};
-    const labelsChanged = JSON.stringify(newLabels) !== JSON.stringify(this.labels);
-    if (diagram !== this.diagram || labelsChanged) {
+    if (diagram !== this.diagram) {
       this.measurementCache.clear();
     }
     this.diagram = diagram;
-    this.labels = newLabels;
     this.groups = groups;
     this.buildRelationshipIndex(diagram.relationships);
     this.entitiesGroup.innerHTML = '';
