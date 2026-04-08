@@ -33,7 +33,7 @@ export function search(state: SearchState, deps: SearchDeps, query: string): str
   const matches: string[] = [];
 
   for (const [name, entity] of Object.entries(diagram.entities)) {
-    const label = layout?.labels?.[name] || entity.label || '';
+    const label = entity.label || '';
     if (
       name.toLowerCase().includes(lower) ||
       label.toLowerCase().includes(lower) ||
