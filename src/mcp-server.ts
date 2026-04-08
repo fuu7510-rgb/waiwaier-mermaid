@@ -181,19 +181,29 @@ server.tool(
 // --- ツール: ビューワーを起動 ---
 let activeViewer: { url: string; port: number; close: () => Promise<void> } | null = null;
 
+/** activeViewerを安全に停止してnullにリセットする */
+async function closeActiveViewer(): Promise<void> {
+  if (!activeViewer) return;
+  try {
+    await activeViewer.close();
+  } catch (err) {
+    console.error('Error closing viewer:', err);
+  } finally {
+    activeViewer = null;
+  }
+}
+
 server.tool(
   'open-viewer',
-  'ブラウザでER図ビューワーを起動する。起動済みの場合はURLを返す',
+  'ブラウザでER図ビューワーを起動する。起動済みの場合は自動で再起動して切り替える',
   {
     filePath: z.string().optional().describe('.mmdファイルの絶対パス（省略時はファイルピッカーモード）'),
     port: z.number().optional().default(3100).describe('使用するポート番号（デフォルト: 3100）'),
   },
   async ({ filePath, port }) => {
-    // 既に起動済みならURLを返す
+    // 起動済みなら閉じてから再起動（ファイル切り替え対応）
     if (activeViewer) {
-      return {
-        content: [{ type: 'text' as const, text: `ビューワーは既に起動中です: ${activeViewer.url}` }],
-      };
+      await closeActiveViewer();
     }
 
     let diagramPath: string | null = null;
@@ -238,8 +248,7 @@ server.tool(
       return { content: [{ type: 'text' as const, text: 'ビューワーは起動していません' }] };
     }
     const url = activeViewer.url;
-    await activeViewer.close();
-    activeViewer = null;
+    await closeActiveViewer();
     return { content: [{ type: 'text' as const, text: `ビューワーを停止しました: ${url}` }] };
   },
 );
@@ -252,10 +261,7 @@ async function main() {
 
   // プロセス終了時にビューワーを自動停止
   const cleanup = async () => {
-    if (activeViewer) {
-      await activeViewer.close().catch(() => {});
-      activeViewer = null;
-    }
+    await closeActiveViewer();
   };
   process.on('SIGINT', () => { cleanup().then(() => process.exit(0)); });
   process.on('SIGTERM', () => { cleanup().then(() => process.exit(0)); });

@@ -376,9 +376,8 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
   return new Promise((resolve, reject) => {
     httpServer.on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        console.error(`Error: Port ${port} is already in use.`);
-        console.error(`Try a different port: mermaid-er-viewer <file> --port ${port + 1}`);
-        process.exit(1);
+        reject(new Error(`Port ${port} is already in use. Try a different port: mermaid-er-viewer <file> --port ${port + 1}`));
+        return;
       }
       reject(err);
     });
