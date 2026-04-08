@@ -14,9 +14,11 @@ export function drawCardinality(
   y: number,
   angle: number,
   identifying: boolean,
+  scale: number = 1,
 ): void {
   const g = document.createElementNS(SVG_NS, 'g');
-  g.setAttribute('transform', `translate(${x}, ${y}) rotate(${angle})`);
+  const scaleAttr = scale !== 1 ? ` scale(${scale})` : '';
+  g.setAttribute('transform', `translate(${x}, ${y}) rotate(${angle})${scaleAttr}`);
   g.classList.add('cardinality');
 
   // Draw from the line end towards the entity (positive x direction)
