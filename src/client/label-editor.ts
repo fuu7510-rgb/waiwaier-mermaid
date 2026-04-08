@@ -1,14 +1,12 @@
-import type { LayoutData } from '../parser/types.js';
+import type { ERDiagramJSON } from '../parser/types.js';
 
 export interface LabelEditorDeps {
-  getLayout: () => LayoutData | null;
+  getDiagram: () => ERDiagramJSON | null;
   getSvg: () => SVGSVGElement;
   getZoom: () => number;
   getPanX: () => number;
   getPanY: () => number;
   getEntityRect: (name: string) => { x: number; y: number; width: number; height: number } | null;
-  scheduleSaveLayout: () => void;
-  rerender: () => void;
 }
 
 export function showLabelEditor(deps: LabelEditorDeps, entityName: string): void {
@@ -18,8 +16,11 @@ export function showLabelEditor(deps: LabelEditorDeps, entityName: string): void
   const svg = deps.getSvg();
   const svgRect = svg.getBoundingClientRect();
   const entityRect = deps.getEntityRect(entityName);
-  const layout = deps.getLayout();
-  if (!entityRect || !layout) return;
+  const diagram = deps.getDiagram();
+  if (!entityRect || !diagram) return;
+
+  const entity = diagram.entities[entityName];
+  const currentLabel = entity?.label || '';
 
   // SVG座標 → 画面座標
   const zoom = deps.getZoom();
@@ -32,8 +33,9 @@ export function showLabelEditor(deps: LabelEditorDeps, entityName: string): void
   const input = document.createElement('input');
   input.type = 'text';
   input.id = 'label-editor';
-  input.value = layout.labels?.[entityName] || '';
-  input.placeholder = '日本語名を入力…';
+  input.value = currentLabel;
+  input.placeholder = '.mmd ファイルで ENTITY["ラベル"] を編集';
+  input.readOnly = true;
   input.style.position = 'fixed';
   input.style.left = `${screenX}px`;
   input.style.top = `${screenY}px`;
@@ -43,27 +45,12 @@ export function showLabelEditor(deps: LabelEditorDeps, entityName: string): void
   input.focus();
   input.select();
 
-  let done = false;
-  function commit(): void {
-    if (done) return;
-    done = true;
-    const currentLayout = deps.getLayout();
-    if (!currentLayout) { input.remove(); return; }
-    const value = input.value.trim();
-    if (!currentLayout.labels) currentLayout.labels = {};
-    if (value) {
-      currentLayout.labels[entityName] = value;
-    } else {
-      delete currentLayout.labels[entityName];
-    }
+  function close(): void {
     input.remove();
-    deps.rerender();
-    deps.scheduleSaveLayout();
   }
 
   input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') { e.preventDefault(); commit(); }
-    if (e.key === 'Escape') { done = true; input.remove(); }
+    if (e.key === 'Escape' || e.key === 'Enter') { e.preventDefault(); close(); }
   });
-  input.addEventListener('blur', () => commit());
+  input.addEventListener('blur', () => close());
 }

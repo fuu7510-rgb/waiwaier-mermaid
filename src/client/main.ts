@@ -212,19 +212,12 @@ function handleEntityClick(target: SVGElement, entityName: string): void {
 
 // Label editor deps (lazy — uses current state at call time)
 const labelEditorDeps = {
-  getLayout: () => layout,
+  getDiagram: () => diagram,
   getSvg,
   getZoom: () => pz.zoom,
   getPanX: () => pz.panX,
   getPanY: () => pz.panY,
   getEntityRect: (name: string) => renderer.getEntityRect(name),
-  scheduleSaveLayout,
-  rerender: () => {
-    if (diagram) {
-      renderer.render(diagram, activeEntities(), layout?.groups);
-      updateViewportTransform();
-    }
-  },
 };
 
 function handleCompactToggle(): void {
@@ -887,7 +880,7 @@ async function init(): Promise<void> {
     onCanvasSave: () => { if (layout) saveActiveCanvas(); },
     onCanvasSaveAndSchedule: () => { if (layout) { saveActiveCanvas(); scheduleSaveLayout(); } },
     onClearHighlight: () => clearHighlight(hl, hlDeps),
-    onEntityDblClick: (entityName) => { if (layout) showLabelEditor(labelEditorDeps, entityName); },
+    onEntityDblClick: (entityName) => { if (diagram) showLabelEditor(labelEditorDeps, entityName); },
     onTap: (x, y) => {
       const el = document.elementFromPoint(x, y);
       if (!el) return;
