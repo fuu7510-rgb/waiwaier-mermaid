@@ -3,12 +3,20 @@ import { showToast } from './toast.js';
 
 const MAX_CANVAS_SIZE = 4096;
 
+/** Remove display:none set by viewport culling so all elements are exported */
+function removeCullingDisplay(clone: SVGSVGElement): void {
+  clone.querySelectorAll('[display="none"]').forEach(el => el.removeAttribute('display'));
+}
+
 export function exportSVG(svgElement: SVGSVGElement, filename: string): void {
   const clone = svgElement.cloneNode(true) as SVGSVGElement;
   const viewport = clone.querySelector('#viewport') as SVGGElement;
 
   // Remove viewport transform to get raw coordinates
   viewport.removeAttribute('transform');
+
+  // Ensure culled elements are visible in export
+  removeCullingDisplay(clone);
 
   // Inline CSS styles for self-contained SVG
   inlineStyles(clone);
@@ -79,6 +87,7 @@ async function svgToPngBlob(svgElement: SVGSVGElement): Promise<Blob> {
   const clone = svgElement.cloneNode(true) as SVGSVGElement;
   const viewport = clone.querySelector('#viewport') as SVGGElement;
   viewport.removeAttribute('transform');
+  removeCullingDisplay(clone);
   inlineStyles(clone);
 
   const bbox = calculateBBox(svgElement);

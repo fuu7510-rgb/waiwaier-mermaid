@@ -141,8 +141,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
         directories: dirs,
         files,
       });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Browse error:', err);
+      res.status(500).json({ error: 'Failed to browse directory' });
     }
   });
 
@@ -197,8 +198,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
       broadcast({ type: 'file-switched', file: filePath });
 
       res.json({ ok: true, file: filePath });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Open error:', err);
+      res.status(500).json({ error: 'Failed to open file' });
     }
   });
 
@@ -218,8 +220,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
 
       broadcast({ type: 'file-closed' });
       res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Close error:', err);
+      res.status(500).json({ error: 'Failed to close file' });
     }
   });
 
@@ -243,8 +246,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
         relationships: diagram.relationships,
       };
       res.json(json);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Diagram parse error:', err);
+      res.status(500).json({ error: 'Failed to parse diagram' });
     }
   });
 
@@ -261,8 +265,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
         layout = state.layoutStore.createDefault(source);
       }
       res.json(layout);
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Layout load error:', err);
+      res.status(500).json({ error: 'Failed to load layout' });
     }
   });
 
@@ -283,8 +288,9 @@ export function createApp(baseDirOrOptions: string | CreateAppOptions): express.
       // API経由の保存でもクライアントに通知する
       broadcast({ type: 'layout-changed' });
       res.json({ ok: true });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
+    } catch (err: unknown) {
+      console.error('Layout save error:', err);
+      res.status(500).json({ error: 'Failed to save layout' });
     }
   });
 
@@ -318,13 +324,17 @@ export function startServer(options: ServerOptions): Promise<{ url: string; clos
     if (!state.layoutStore) return;
     state.layoutWatcher = new FileWatcher(state.layoutStore.getLayoutPath());
     state.layoutWatcher.onChange(() => {
-      const content = readFileSync(state.layoutStore!.getLayoutPath(), 'utf-8');
-      const currentHash = state.layoutStore!.computeHash(content);
-      if (currentHash === state.lastWrittenHash) {
-        state.lastWrittenHash = null;
-        return;
+      try {
+        const content = readFileSync(state.layoutStore!.getLayoutPath(), 'utf-8');
+        const currentHash = state.layoutStore!.computeHash(content);
+        if (currentHash === state.lastWrittenHash) {
+          state.lastWrittenHash = null;
+          return;
+        }
+        broadcast({ type: 'layout-changed' });
+      } catch {
+        // File may be temporarily unavailable during atomic saves
       }
-      broadcast({ type: 'layout-changed' });
     });
     state.layoutWatcher.start();
   }

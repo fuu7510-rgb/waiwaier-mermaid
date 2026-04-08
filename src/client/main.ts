@@ -248,9 +248,11 @@ function handleCompactToggle(): void {
   // 切替先モードのキャンバス状態を復元
   const canvas = activeCanvas();
   if (canvas) {
-    pz.panX = canvas.panX;
-    pz.panY = canvas.panY;
-    pz.zoom = canvas.zoom;
+    if (isFinite(canvas.panX)) pz.panX = canvas.panX;
+    if (isFinite(canvas.panY)) pz.panY = canvas.panY;
+    if (isFinite(canvas.zoom) && canvas.zoom >= MIN_ZOOM && canvas.zoom <= MAX_ZOOM) {
+      pz.zoom = canvas.zoom;
+    }
   }
   updateViewportTransform();
 
@@ -868,7 +870,10 @@ async function init(): Promise<void> {
   // Restore font scale from localStorage
   const savedFontScale = localStorage.getItem('er-font-scale');
   if (savedFontScale) {
-    renderer.fontScale = parseFloat(savedFontScale);
+    const parsed = parseFloat(savedFontScale);
+    if (isFinite(parsed) && parsed >= MIN_FONT_SCALE && parsed <= MAX_FONT_SCALE) {
+      renderer.fontScale = parsed;
+    }
   }
   updateFontScaleLabel();
   dragHandler = new DragHandler(svg, renderer);
@@ -925,9 +930,11 @@ async function init(): Promise<void> {
   // Restore canvas position from layout
   const savedCanvas = activeCanvas();
   if (savedCanvas) {
-    pz.panX = savedCanvas.panX;
-    pz.panY = savedCanvas.panY;
-    pz.zoom = savedCanvas.zoom;
+    if (isFinite(savedCanvas.panX)) pz.panX = savedCanvas.panX;
+    if (isFinite(savedCanvas.panY)) pz.panY = savedCanvas.panY;
+    if (isFinite(savedCanvas.zoom) && savedCanvas.zoom >= MIN_ZOOM && savedCanvas.zoom <= MAX_ZOOM) {
+      pz.zoom = savedCanvas.zoom;
+    }
     updateViewportTransform();
   }
 }

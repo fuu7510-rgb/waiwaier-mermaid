@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, renameSync, existsSync } from 'fs';
 import { createHash } from 'crypto';
 import type { LayoutData } from '../parser/types.js';
 
@@ -55,13 +55,19 @@ export class LayoutStore {
     }
   }
 
+  private atomicWrite(content: string): void {
+    const tmpPath = this.layoutPath + '.tmp';
+    writeFileSync(tmpPath, content, 'utf-8');
+    renameSync(tmpPath, this.layoutPath);
+  }
+
   save(layout: LayoutData): void {
-    writeFileSync(this.layoutPath, JSON.stringify(this.buildOutput(layout), null, 2), 'utf-8');
+    this.atomicWrite(JSON.stringify(this.buildOutput(layout), null, 2));
   }
 
   saveAndGetHash(layout: LayoutData): string {
     const content = JSON.stringify(this.buildOutput(layout), null, 2);
-    writeFileSync(this.layoutPath, content, 'utf-8');
+    this.atomicWrite(content);
     return this.computeHash(content);
   }
 

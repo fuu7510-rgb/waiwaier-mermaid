@@ -1,0 +1,43 @@
+erDiagram
+    CUSTOMER {
+        int id PK "顧客ID"
+        string name "氏名"
+        string email "メールアドレス"
+        datetime created_at "登録日時"
+    }
+
+    PRODUCT {
+        int id PK "商品ID"
+        string name "商品名"
+        decimal price "価格"
+        int stock "在庫数"
+    }
+
+    ORDER {
+        int id PK "注文ID"
+        int customer_id FK "顧客ID"
+        datetime ordered_at "注文日時"
+        decimal total "合計金額"
+        string status "ステータス"
+    }
+
+    ORDER_ITEM {
+        int id PK "明細ID"
+        int order_id FK "注文ID"
+        int product_id FK "商品ID"
+        int quantity "数量"
+        decimal unit_price "単価"
+    }
+
+    PAYMENT {
+        int id PK "決済ID"
+        int order_id FK "注文ID"
+        string method "決済方法"
+        decimal amount "決済金額"
+        datetime paid_at "決済日時"
+    }
+
+    CUSTOMER ||--o{ ORDER : "注文する"
+    ORDER ||--|{ ORDER_ITEM : "含む"
+    PRODUCT ||--o{ ORDER_ITEM : "購入される"
+    ORDER ||--|| PAYMENT : "決済される"
