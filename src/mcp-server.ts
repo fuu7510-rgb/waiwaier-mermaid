@@ -86,7 +86,7 @@ server.tool(
 // --- ツール: レイアウト取得 ---
 server.tool(
   'get-layout',
-  'ER図のレイアウトデータ（エンティティ位置、ラベル、キャンバス状態）をJSONで返す',
+  'ER図のレイアウトデータ（エンティティ位置、キャンバス状態）をJSONで返す',
   { filePath: z.string().describe('.mmdファイルの絶対パス') },
   async ({ filePath }) => {
     const absPath = resolve(filePath);
@@ -107,19 +107,15 @@ server.tool(
 // --- ツール: レイアウト保存 ---
 server.tool(
   'save-layout',
-  'ER図のレイアウトデータを保存する。labelsフィールドでエンティティの日本語名を設定できる',
+  'ER図のレイアウトデータ（エンティティ位置）を保存する',
   {
     filePath: z.string().describe('.mmdファイルの絶対パス'),
-    labels: z
-      .record(z.string(), z.string())
-      .optional()
-      .describe('エンティティの表示ラベル（例: {"users": "ユーザー", "orders": "注文"}）'),
     entities: z
       .record(z.string(), z.object({ x: z.number(), y: z.number() }))
       .optional()
       .describe('エンティティの位置（例: {"users": {"x": 100, "y": 200}}）'),
   },
-  async ({ filePath, labels, entities }) => {
+  async ({ filePath, entities }) => {
     const absPath = resolve(filePath);
     if (!existsSync(absPath)) {
       return { content: [{ type: 'text' as const, text: `Error: ファイルが見つかりません: ${absPath}` }], isError: true };
@@ -129,9 +125,6 @@ server.tool(
     const source = readFileSync(absPath, 'utf-8');
     let layout = store.load() || store.createDefault(source);
 
-    if (labels) {
-      layout.labels = { ...layout.labels, ...labels };
-    }
     if (entities) {
       layout.entities = { ...layout.entities, ...entities };
     }
