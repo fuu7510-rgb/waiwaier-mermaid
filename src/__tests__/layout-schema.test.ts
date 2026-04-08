@@ -18,7 +18,6 @@ describe('layoutDataSchema', () => {
   it('オプショナルフィールド付きデータを受け入れる', () => {
     const data = {
       ...validLayout,
-      labels: { USERS: 'ユーザー' },
       compactEntities: { USERS: { x: 50, y: 50 } },
       compactCanvas: { panX: 10, panY: 10, zoom: 0.5 },
     };

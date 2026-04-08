@@ -14,17 +14,12 @@ export class LayoutStore {
       contentHash: 'string — hash of diagram content for change detection',
       canvas: '{ panX, panY, zoom } — viewport state for normal mode',
       entities: 'Record<entityName, { x, y }> — entity positions for normal mode',
-      labels: 'Record<entityName, string> — display labels (e.g. Japanese names) shown below entity name',
       compactEntities: 'Record<entityName, { x, y }> — entity positions for compact mode',
       compactCanvas: '{ panX, panY, zoom } — viewport state for compact mode',
     },
     notes: {
+      entityLabels: 'エンティティの日本語名は .mmd ファイル内で Mermaid標準の ENTITY["ラベル"] 構文を使用してください',
       relationshipLabels: 'リレーションのラベル（日本語名など）は .mmd ファイル内に直接記述してください。例: USERS ||--o{ ORDERS : "注文する"',
-    },
-    labels_example: {
-      users: 'ユーザー',
-      orders: '注文',
-      order_items: '注文明細',
     },
   };
 

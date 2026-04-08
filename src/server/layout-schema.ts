@@ -17,7 +17,6 @@ export const layoutDataSchema = z.object({
   contentHash: z.string(),
   canvas: canvasSchema,
   entities: z.record(z.string(), entityPositionSchema),
-  labels: z.record(z.string(), z.string()).optional(),
   compactEntities: z.record(z.string(), entityPositionSchema).optional(),
   compactCanvas: canvasSchema.optional(),
   groups: z.record(z.string(), z.object({

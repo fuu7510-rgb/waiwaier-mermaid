@@ -40,7 +40,6 @@ export interface LayoutData {
     zoom: number;
   };
   entities: Record<string, { x: number; y: number }>;
-  labels?: Record<string, string>;
   compactEntities?: Record<string, { x: number; y: number }>;
   compactCanvas?: {
     panX: number;
