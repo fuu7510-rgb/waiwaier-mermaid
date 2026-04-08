@@ -15,7 +15,7 @@ await esbuild.build({
   outdir: 'dist/server',
   external: ['express', 'ws', 'chokidar', 'open'],
   banner: {
-    js: `
+    js: `#!/usr/bin/env node
 import { createRequire } from 'module';
 import { fileURLToPath as __fileURLToPath } from 'url';
 import { dirname as __dirname_fn } from 'path';
