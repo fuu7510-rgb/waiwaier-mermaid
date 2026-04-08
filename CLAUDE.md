@@ -27,14 +27,14 @@ Claude Code用MCPサーバーとしても動作する。
 
 ## .mmdファイルの原則
 - **Mermaid標準のER図構文のみ使用すること**。独自拡張構文を書き込まない
+- エンティティの日本語名は Mermaid標準の `["..."]` 構文を使う: `USERS["ユーザー"] {`
 - このツールはClaude Codeが標準Mermaidを理解・閲覧するための補助ツール
-- 日本語ラベル・レイアウト位置などのメタデータは .layout.json に保存する
-- MCPの `save-layout` ツールでラベルを設定するのが正しいやり方
 - .mmdファイルは他のMermaidツール（公式Live Editor等）でも開ける状態を維持する
 
 ## 実装上の注意
 - サーバーは .mmd を読み取り専用。書き込むのは .layout.json のみ
-- Entity.label（["..."]構文）は layout.labels のフォールバックとして表示される
+- Entity.label（.mmd の ["..."] 構文）がエンティティの日本語名の唯一の情報源
+- layout.json にはラベル情報を保存しない（位置・キャンバス状態のみ）
 - PUT /api/layout 後は必ず WebSocket で layout-changed をブロードキャストする
 - file-changed 時は flushSaveLayout() で未保存レイアウトを先に保存してから再読み込み
 - fetch API には cache: 'no-store' を付けてブラウザキャッシュを回避する
