@@ -148,7 +148,7 @@ async function loadAndRender(): Promise<void> {
       }
     }
 
-    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+    renderer.render(diagram, activeEntities(), layout.groups);
     updateViewportTransform();
 
     // Reapply search highlights after re-render
@@ -221,7 +221,7 @@ const labelEditorDeps = {
   scheduleSaveLayout,
   rerender: () => {
     if (diagram) {
-      renderer.render(diagram, activeEntities(), layout?.labels, layout?.groups);
+      renderer.render(diagram, activeEntities(), layout?.groups);
       updateViewportTransform();
     }
   },
@@ -243,7 +243,7 @@ function handleCompactToggle(): void {
 
   // 切替先モードの位置でレンダリング
   const positions = activeEntities();
-  renderer.render(diagram, positions, layout.labels, layout.groups);
+  renderer.render(diagram, positions, layout.groups);
 
   // 切替先モードのキャンバス状態を復元
   const canvas = activeCanvas();
@@ -272,7 +272,7 @@ function handleAutoLayout(): void {
   if (!diagram || !layout) return;
   const positions = autoLayoutAll(diagram);
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+  renderer.render(diagram, activeEntities(), layout.groups);
   history.push(activeEntities());
   updateUndoRedoButtons();
   scheduleSaveLayout();
@@ -283,7 +283,7 @@ function handleUndo(): void {
   const positions = history.undo();
   if (!positions) return;
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+  renderer.render(diagram, activeEntities(), layout.groups);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -293,7 +293,7 @@ function handleRedo(): void {
   const positions = history.redo();
   if (!positions) return;
   setActiveEntities(positions);
-  renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+  renderer.render(diagram, activeEntities(), layout.groups);
   updateUndoRedoButtons();
   scheduleSaveLayout();
 }
@@ -418,7 +418,7 @@ function changeFontScale(delta: number): void {
   localStorage.setItem('er-font-scale', String(newScale));
   updateFontScaleLabel();
   if (diagram && layout) {
-    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+    renderer.render(diagram, activeEntities(), layout.groups);
     updateViewportTransform();
   }
 }
@@ -565,7 +565,7 @@ function closeContextMenu(): void {
 
 function rerenderAll(): void {
   if (diagram && layout) {
-    renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+    renderer.render(diagram, activeEntities(), layout.groups);
     updateViewportTransform();
     if (minimap) minimap.scheduleRedraw();
   }
@@ -813,7 +813,6 @@ function setupWebSocket(): void {
     try {
       await flushSaveLayout();
       const diskLayout = await fetchLayout();
-      layout.labels = diskLayout.labels;
       layout.entities = diskLayout.entities;
       layout.canvas = diskLayout.canvas;
       if (diskLayout.compactEntities) {
@@ -825,7 +824,7 @@ function setupWebSocket(): void {
       if (diskLayout.groups) {
         layout.groups = diskLayout.groups;
       }
-      renderer.render(diagram, activeEntities(), layout.labels, layout.groups);
+      renderer.render(diagram, activeEntities(), layout.groups);
       updateViewportTransform();
       history.init(activeEntities());
       updateUndoRedoButtons();
