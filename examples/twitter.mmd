@@ -1,0 +1,137 @@
+erDiagram
+    USER {
+        int id PK "ユーザーID"
+        string username "ユーザー名"
+        string display_name "表示名"
+        string email "メールアドレス"
+        string bio "自己紹介"
+        string avatar_url "アイコンURL"
+        string header_url "ヘッダー画像URL"
+        boolean is_verified "認証済み"
+        boolean is_private "非公開アカウント"
+        datetime created_at "登録日時"
+    }
+
+    TWEET {
+        int id PK "ツイートID"
+        int user_id FK "投稿者ID"
+        int reply_to_id FK "リプライ先ツイートID"
+        int retweet_of_id FK "リツイート元ID"
+        int quote_of_id FK "引用元ID"
+        text content "本文"
+        int like_count "いいね数"
+        int retweet_count "リツイート数"
+        int reply_count "リプライ数"
+        datetime created_at "投稿日時"
+        datetime deleted_at "削除日時"
+    }
+
+    FOLLOW {
+        int id PK "フォローID"
+        int follower_id FK "フォロワーID"
+        int following_id FK "フォロー先ID"
+        datetime created_at "フォロー日時"
+    }
+
+    LIKE {
+        int id PK "いいねID"
+        int user_id FK "ユーザーID"
+        int tweet_id FK "ツイートID"
+        datetime created_at "いいね日時"
+    }
+
+    BOOKMARK {
+        int id PK "ブックマークID"
+        int user_id FK "ユーザーID"
+        int tweet_id FK "ツイートID"
+        datetime created_at "保存日時"
+    }
+
+    HASHTAG {
+        int id PK "ハッシュタグID"
+        string tag "タグ名"
+        int tweet_count "使用回数"
+    }
+
+    TWEET_HASHTAG {
+        int id PK "ID"
+        int tweet_id FK "ツイートID"
+        int hashtag_id FK "ハッシュタグID"
+    }
+
+    MEDIA {
+        int id PK "メディアID"
+        int tweet_id FK "ツイートID"
+        string media_type "種類"
+        string url "URL"
+        string alt_text "代替テキスト"
+        int width "幅"
+        int height "高さ"
+    }
+
+    DIRECT_MESSAGE {
+        int id PK "メッセージID"
+        int sender_id FK "送信者ID"
+        int recipient_id FK "受信者ID"
+        text content "本文"
+        boolean is_read "既読"
+        datetime created_at "送信日時"
+    }
+
+    NOTIFICATION {
+        int id PK "通知ID"
+        int user_id FK "対象ユーザーID"
+        int actor_id FK "操作者ID"
+        string type "通知種別"
+        int tweet_id FK "関連ツイートID"
+        boolean is_read "既読"
+        datetime created_at "通知日時"
+    }
+
+    BLOCK {
+        int id PK "ブロックID"
+        int blocker_id FK "ブロックした人"
+        int blocked_id FK "ブロックされた人"
+        datetime created_at "ブロック日時"
+    }
+
+    MUTE {
+        int id PK "ミュートID"
+        int user_id FK "ミュートした人"
+        int muted_id FK "ミュートされた人"
+        datetime created_at "ミュート日時"
+    }
+
+    LIST {
+        int id PK "リストID"
+        int owner_id FK "作成者ID"
+        string name "リスト名"
+        string description "説明"
+        boolean is_private "非公開"
+        datetime created_at "作成日時"
+    }
+
+    LIST_MEMBER {
+        int id PK "ID"
+        int list_id FK "リストID"
+        int user_id FK "メンバーID"
+        datetime added_at "追加日時"
+    }
+
+    USER ||--o{ TWEET : "投稿する"
+    TWEET ||--o{ TWEET : "リプライ"
+    USER ||--o{ FOLLOW : "フォローする"
+    USER ||--o{ LIKE : "いいねする"
+    TWEET ||--o{ LIKE : "いいねされる"
+    USER ||--o{ BOOKMARK : "ブックマークする"
+    TWEET ||--o{ BOOKMARK : "保存される"
+    TWEET ||--o{ TWEET_HASHTAG : "タグ付け"
+    HASHTAG ||--o{ TWEET_HASHTAG : "使用される"
+    TWEET ||--o{ MEDIA : "添付する"
+    USER ||--o{ DIRECT_MESSAGE : "送信する"
+    USER ||--o{ NOTIFICATION : "通知を受ける"
+    USER ||--o{ BLOCK : "ブロックする"
+    USER ||--o{ MUTE : "ミュートする"
+    USER ||--o{ LIST : "リスト作成"
+    LIST ||--o{ LIST_MEMBER : "含む"
+    USER ||--o{ LIST_MEMBER : "所属する"

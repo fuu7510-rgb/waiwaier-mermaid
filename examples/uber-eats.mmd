@@ -1,0 +1,223 @@
+erDiagram
+    CUSTOMER {
+        int id PK "顧客ID"
+        string name "氏名"
+        string email "メールアドレス"
+        string phone "電話番号"
+        string avatar_url "アイコンURL"
+        datetime created_at "登録日時"
+    }
+
+    CUSTOMER_ADDRESS {
+        int id PK "住所ID"
+        int customer_id FK "顧客ID"
+        string label "ラベル"
+        string address_line "住所"
+        string city "市区町村"
+        string zip_code "郵便番号"
+        decimal latitude "緯度"
+        decimal longitude "経度"
+        boolean is_default "デフォルト"
+    }
+
+    RESTAURANT {
+        int id PK "店舗ID"
+        int owner_id FK "オーナーID"
+        string name "店舗名"
+        string description "説明"
+        string image_url "画像URL"
+        string phone "電話番号"
+        string address "住所"
+        decimal latitude "緯度"
+        decimal longitude "経度"
+        decimal rating "評価"
+        int review_count "レビュー数"
+        int avg_prep_time_min "平均調理時間(分)"
+        decimal min_order_amount "最低注文金額"
+        boolean is_active "営業中"
+        datetime created_at "登録日時"
+    }
+
+    RESTAURANT_OWNER {
+        int id PK "オーナーID"
+        string name "氏名"
+        string email "メールアドレス"
+        string phone "電話番号"
+    }
+
+    CATEGORY {
+        int id PK "カテゴリID"
+        string name "カテゴリ名"
+        string icon_url "アイコンURL"
+        int sort_order "表示順"
+    }
+
+    RESTAURANT_CATEGORY {
+        int id PK "ID"
+        int restaurant_id FK "店舗ID"
+        int category_id FK "カテゴリID"
+    }
+
+    MENU_SECTION {
+        int id PK "セクションID"
+        int restaurant_id FK "店舗ID"
+        string name "セクション名"
+        int sort_order "表示順"
+    }
+
+    MENU_ITEM {
+        int id PK "メニューID"
+        int section_id FK "セクションID"
+        string name "商品名"
+        string description "説明"
+        string image_url "画像URL"
+        decimal price "価格"
+        boolean is_available "販売中"
+        boolean is_popular "人気商品"
+        int sort_order "表示順"
+    }
+
+    OPTION_GROUP {
+        int id PK "オプショングループID"
+        int menu_item_id FK "メニューID"
+        string name "グループ名"
+        boolean is_required "必須"
+        int min_select "最小選択数"
+        int max_select "最大選択数"
+    }
+
+    OPTION_ITEM {
+        int id PK "オプションID"
+        int group_id FK "グループID"
+        string name "オプション名"
+        decimal additional_price "追加料金"
+    }
+
+    DELIVERY_PARTNER {
+        int id PK "配達員ID"
+        string name "氏名"
+        string phone "電話番号"
+        string vehicle_type "車両種別"
+        string license_plate "ナンバー"
+        decimal rating "評価"
+        int total_deliveries "配達回数"
+        boolean is_online "オンライン"
+        decimal current_lat "現在緯度"
+        decimal current_lng "現在経度"
+    }
+
+    ORDERS {
+        int id PK "注文ID"
+        int customer_id FK "顧客ID"
+        int restaurant_id FK "店舗ID"
+        int delivery_partner_id FK "配達員ID"
+        int delivery_address_id FK "配達先ID"
+        int coupon_id FK "クーポンID"
+        string status "ステータス"
+        decimal subtotal "小計"
+        decimal delivery_fee "配達料"
+        decimal service_fee "サービス料"
+        decimal discount "割引"
+        decimal total "合計"
+        text special_instructions "備考"
+        datetime ordered_at "注文日時"
+        datetime prepared_at "調理完了日時"
+        datetime picked_up_at "ピックアップ日時"
+        datetime delivered_at "配達完了日時"
+    }
+
+    ORDER_ITEM {
+        int id PK "注文明細ID"
+        int order_id FK "注文ID"
+        int menu_item_id FK "メニューID"
+        int quantity "数量"
+        decimal unit_price "単価"
+        text special_instructions "備考"
+    }
+
+    ORDER_ITEM_OPTION {
+        int id PK "ID"
+        int order_item_id FK "注文明細ID"
+        int option_item_id FK "オプションID"
+        decimal price "価格"
+    }
+
+    PAYMENT {
+        int id PK "決済ID"
+        int order_id FK "注文ID"
+        string method "決済方法"
+        string status "決済ステータス"
+        decimal amount "決済金額"
+        string transaction_id "取引ID"
+        datetime paid_at "決済日時"
+    }
+
+    REVIEW {
+        int id PK "レビューID"
+        int order_id FK "注文ID"
+        int customer_id FK "顧客ID"
+        int restaurant_id FK "店舗ID"
+        int rating "評価"
+        text comment "コメント"
+        datetime created_at "投稿日時"
+    }
+
+    DELIVERY_REVIEW {
+        int id PK "配達レビューID"
+        int order_id FK "注文ID"
+        int customer_id FK "顧客ID"
+        int delivery_partner_id FK "配達員ID"
+        int rating "評価"
+        text comment "コメント"
+        decimal tip_amount "チップ"
+    }
+
+    COUPON {
+        int id PK "クーポンID"
+        string code "クーポンコード"
+        string discount_type "割引種別"
+        decimal discount_value "割引値"
+        decimal min_order_amount "最低注文金額"
+        decimal max_discount "最大割引額"
+        int usage_limit "利用上限"
+        int used_count "使用回数"
+        datetime valid_from "有効開始"
+        datetime valid_until "有効期限"
+    }
+
+    PROMOTION {
+        int id PK "プロモーションID"
+        int restaurant_id FK "店舗ID"
+        string title "タイトル"
+        string description "説明"
+        string discount_type "割引種別"
+        decimal discount_value "割引値"
+        datetime start_at "開始日時"
+        datetime end_at "終了日時"
+    }
+
+    CUSTOMER ||--o{ CUSTOMER_ADDRESS : "登録する"
+    RESTAURANT_OWNER ||--o{ RESTAURANT : "運営する"
+    RESTAURANT ||--o{ RESTAURANT_CATEGORY : "属する"
+    CATEGORY ||--o{ RESTAURANT_CATEGORY : "分類する"
+    RESTAURANT ||--o{ MENU_SECTION : "持つ"
+    MENU_SECTION ||--|{ MENU_ITEM : "含む"
+    MENU_ITEM ||--o{ OPTION_GROUP : "持つ"
+    OPTION_GROUP ||--|{ OPTION_ITEM : "含む"
+    CUSTOMER ||--o{ ORDERS : "注文する"
+    RESTAURANT ||--o{ ORDERS : "受注する"
+    DELIVERY_PARTNER ||--o{ ORDERS : "配達する"
+    CUSTOMER_ADDRESS ||--o{ ORDERS : "届け先"
+    COUPON ||--o{ ORDERS : "適用される"
+    ORDERS ||--|{ ORDER_ITEM : "含む"
+    MENU_ITEM ||--o{ ORDER_ITEM : "注文される"
+    ORDER_ITEM ||--o{ ORDER_ITEM_OPTION : "含む"
+    OPTION_ITEM ||--o{ ORDER_ITEM_OPTION : "選択される"
+    ORDERS ||--|| PAYMENT : "決済する"
+    CUSTOMER ||--o{ REVIEW : "投稿する"
+    RESTAURANT ||--o{ REVIEW : "評価される"
+    ORDERS ||--o| REVIEW : "レビューされる"
+    CUSTOMER ||--o{ DELIVERY_REVIEW : "評価する"
+    DELIVERY_PARTNER ||--o{ DELIVERY_REVIEW : "評価される"
+    ORDERS ||--o| DELIVERY_REVIEW : "評価される"
+    RESTAURANT ||--o{ PROMOTION : "実施する"

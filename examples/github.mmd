@@ -1,0 +1,261 @@
+erDiagram
+    USER {
+        int id PK "ユーザーID"
+        string username "ユーザー名"
+        string display_name "表示名"
+        string email "メールアドレス"
+        string bio "プロフィール"
+        string avatar_url "アイコンURL"
+        string location "所在地"
+        string website "Webサイト"
+        boolean is_hireable "採用可"
+        datetime created_at "登録日時"
+    }
+
+    ORGANIZATION {
+        int id PK "Organization ID"
+        string name "名前"
+        string display_name "表示名"
+        string description "説明"
+        string avatar_url "アイコンURL"
+        string website "Webサイト"
+        string location "所在地"
+        string billing_email "請求先メール"
+        string plan "プラン"
+        datetime created_at "作成日時"
+    }
+
+    ORG_MEMBER {
+        int id PK "ID"
+        int org_id FK "Organization ID"
+        int user_id FK "ユーザーID"
+        string role "ロール"
+        datetime joined_at "参加日時"
+    }
+
+    TEAM {
+        int id PK "チームID"
+        int org_id FK "Organization ID"
+        int parent_id FK "親チームID"
+        string name "チーム名"
+        string description "説明"
+        string privacy "公開設定"
+    }
+
+    TEAM_MEMBER {
+        int id PK "ID"
+        int team_id FK "チームID"
+        int user_id FK "ユーザーID"
+        string role "ロール"
+    }
+
+    REPOSITORY {
+        int id PK "リポジトリID"
+        int owner_id FK "オーナーID"
+        int org_id FK "Organization ID"
+        string name "リポジトリ名"
+        string description "説明"
+        string default_branch "デフォルトブランチ"
+        string visibility "公開設定"
+        boolean is_fork "Fork"
+        int forked_from_id FK "Fork元"
+        boolean has_issues "Issues有効"
+        boolean has_wiki "Wiki有効"
+        string license "ライセンス"
+        int star_count "スター数"
+        int fork_count "Fork数"
+        datetime created_at "作成日時"
+        datetime pushed_at "最終Push"
+    }
+
+    COLLABORATOR {
+        int id PK "ID"
+        int repo_id FK "リポジトリID"
+        int user_id FK "ユーザーID"
+        string permission "権限"
+    }
+
+    BRANCH {
+        int id PK "ブランチID"
+        int repo_id FK "リポジトリID"
+        string name "ブランチ名"
+        string head_sha "HEAD SHA"
+        boolean is_protected "保護ブランチ"
+    }
+
+    COMMIT {
+        int id PK "コミットID"
+        int repo_id FK "リポジトリID"
+        int author_id FK "Author ID"
+        int committer_id FK "Committer ID"
+        string sha "SHA"
+        text message "コミットメッセージ"
+        int additions "追加行数"
+        int deletions "削除行数"
+        datetime committed_at "コミット日時"
+    }
+
+    ISSUE {
+        int id PK "Issue ID"
+        int repo_id FK "リポジトリID"
+        int author_id FK "作成者ID"
+        int assignee_id FK "担当者ID"
+        int milestone_id FK "マイルストーンID"
+        int number "Issue番号"
+        string title "タイトル"
+        text body "本文"
+        string state "状態"
+        boolean is_locked "ロック済み"
+        int comment_count "コメント数"
+        datetime created_at "作成日時"
+        datetime closed_at "クローズ日時"
+    }
+
+    PULL_REQUEST {
+        int id PK "PR ID"
+        int repo_id FK "リポジトリID"
+        int author_id FK "作成者ID"
+        int milestone_id FK "マイルストーンID"
+        int number "PR番号"
+        string title "タイトル"
+        text body "本文"
+        string state "状態"
+        string head_branch "HEADブランチ"
+        string base_branch "BASEブランチ"
+        string merge_commit_sha "マージコミットSHA"
+        boolean is_draft "ドラフト"
+        int additions "追加行数"
+        int deletions "削除行数"
+        int changed_files "変更ファイル数"
+        datetime created_at "作成日時"
+        datetime merged_at "マージ日時"
+        datetime closed_at "クローズ日時"
+    }
+
+    PR_REVIEW {
+        int id PK "レビューID"
+        int pr_id FK "PR ID"
+        int reviewer_id FK "レビュアーID"
+        string state "状態"
+        text body "コメント"
+        datetime submitted_at "提出日時"
+    }
+
+    COMMENT {
+        int id PK "コメントID"
+        int user_id FK "投稿者ID"
+        int issue_id FK "Issue ID"
+        int pr_id FK "PR ID"
+        text body "本文"
+        datetime created_at "投稿日時"
+        datetime updated_at "更新日時"
+    }
+
+    LABEL {
+        int id PK "ラベルID"
+        int repo_id FK "リポジトリID"
+        string name "ラベル名"
+        string color "色"
+        string description "説明"
+    }
+
+    ISSUE_LABEL {
+        int id PK "ID"
+        int issue_id FK "Issue ID"
+        int label_id FK "ラベルID"
+    }
+
+    MILESTONE {
+        int id PK "マイルストーンID"
+        int repo_id FK "リポジトリID"
+        string title "タイトル"
+        string description "説明"
+        string state "状態"
+        date due_on "期限"
+        datetime created_at "作成日時"
+    }
+
+    STAR {
+        int id PK "スターID"
+        int user_id FK "ユーザーID"
+        int repo_id FK "リポジトリID"
+        datetime starred_at "スター日時"
+    }
+
+    WATCH {
+        int id PK "ウォッチID"
+        int user_id FK "ユーザーID"
+        int repo_id FK "リポジトリID"
+        string setting "通知設定"
+    }
+
+    RELEASE {
+        int id PK "リリースID"
+        int repo_id FK "リポジトリID"
+        int author_id FK "作成者ID"
+        string tag_name "タグ名"
+        string name "リリース名"
+        text body "リリースノート"
+        boolean is_draft "ドラフト"
+        boolean is_prerelease "プレリリース"
+        datetime published_at "公開日時"
+    }
+
+    ACTIONS_WORKFLOW {
+        int id PK "ワークフローID"
+        int repo_id FK "リポジトリID"
+        string name "ワークフロー名"
+        string path "ファイルパス"
+        string state "状態"
+    }
+
+    WORKFLOW_RUN {
+        int id PK "実行ID"
+        int workflow_id FK "ワークフローID"
+        int trigger_user_id FK "トリガーユーザー"
+        string head_branch "ブランチ"
+        string head_sha "SHA"
+        string status "ステータス"
+        string conclusion "結果"
+        datetime started_at "開始日時"
+        datetime completed_at "完了日時"
+    }
+
+    ORGANIZATION ||--o{ ORG_MEMBER : "所属する"
+    USER ||--o{ ORG_MEMBER : "参加する"
+    ORGANIZATION ||--o{ TEAM : "持つ"
+    TEAM ||--o{ TEAM : "親子関係"
+    TEAM ||--o{ TEAM_MEMBER : "含む"
+    USER ||--o{ TEAM_MEMBER : "所属する"
+    USER ||--o{ REPOSITORY : "所有する"
+    ORGANIZATION ||--o{ REPOSITORY : "所有する"
+    REPOSITORY ||--o{ REPOSITORY : "Fork元"
+    REPOSITORY ||--o{ COLLABORATOR : "招待する"
+    USER ||--o{ COLLABORATOR : "参加する"
+    REPOSITORY ||--o{ BRANCH : "持つ"
+    REPOSITORY ||--o{ COMMIT : "含む"
+    USER ||--o{ COMMIT : "コミットする"
+    REPOSITORY ||--o{ ISSUE : "持つ"
+    USER ||--o{ ISSUE : "作成する"
+    REPOSITORY ||--o{ PULL_REQUEST : "持つ"
+    USER ||--o{ PULL_REQUEST : "作成する"
+    PULL_REQUEST ||--o{ PR_REVIEW : "レビューされる"
+    USER ||--o{ PR_REVIEW : "レビューする"
+    USER ||--o{ COMMENT : "投稿する"
+    ISSUE ||--o{ COMMENT : "コメントされる"
+    PULL_REQUEST ||--o{ COMMENT : "コメントされる"
+    REPOSITORY ||--o{ LABEL : "定義する"
+    ISSUE ||--o{ ISSUE_LABEL : "ラベル付け"
+    LABEL ||--o{ ISSUE_LABEL : "付与される"
+    REPOSITORY ||--o{ MILESTONE : "持つ"
+    MILESTONE ||--o{ ISSUE : "含む"
+    MILESTONE ||--o{ PULL_REQUEST : "含む"
+    USER ||--o{ STAR : "スターする"
+    REPOSITORY ||--o{ STAR : "スターされる"
+    USER ||--o{ WATCH : "ウォッチする"
+    REPOSITORY ||--o{ WATCH : "ウォッチされる"
+    REPOSITORY ||--o{ RELEASE : "リリースする"
+    USER ||--o{ RELEASE : "作成する"
+    REPOSITORY ||--o{ ACTIONS_WORKFLOW : "定義する"
+    ACTIONS_WORKFLOW ||--o{ WORKFLOW_RUN : "実行する"
+    USER ||--o{ WORKFLOW_RUN : "トリガーする"

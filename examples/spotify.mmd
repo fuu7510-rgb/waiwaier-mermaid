@@ -1,0 +1,151 @@
+erDiagram
+    USER {
+        int id PK "ユーザーID"
+        string email "メールアドレス"
+        string display_name "表示名"
+        string avatar_url "アイコンURL"
+        string country "国"
+        int subscription_id FK "プランID"
+        datetime created_at "登録日時"
+    }
+
+    SUBSCRIPTION_PLAN {
+        int id PK "プランID"
+        string name "プラン名"
+        decimal price "月額料金"
+        int max_devices "同時再生数"
+        boolean has_ads "広告あり"
+        boolean offline_enabled "オフライン再生"
+        string audio_quality "音質"
+    }
+
+    ARTIST {
+        int id PK "アーティストID"
+        string name "アーティスト名"
+        string bio "プロフィール"
+        string image_url "画像URL"
+        int monthly_listeners "月間リスナー数"
+        boolean is_verified "認証済み"
+        string country "出身国"
+    }
+
+    ALBUM {
+        int id PK "アルバムID"
+        int artist_id FK "メインアーティストID"
+        string title "アルバム名"
+        string album_type "種別"
+        string cover_url "ジャケットURL"
+        date release_date "リリース日"
+        int total_tracks "収録曲数"
+        string label "レーベル"
+    }
+
+    TRACK {
+        int id PK "楽曲ID"
+        int album_id FK "アルバムID"
+        string title "曲名"
+        int duration_ms "再生時間(ms)"
+        int track_number "トラック番号"
+        int disc_number "ディスク番号"
+        boolean is_explicit "露骨な表現"
+        string isrc "ISRC"
+        int play_count "再生回数"
+    }
+
+    TRACK_ARTIST {
+        int id PK "ID"
+        int track_id FK "楽曲ID"
+        int artist_id FK "アーティストID"
+        string role "役割"
+    }
+
+    PLAYLIST {
+        int id PK "プレイリストID"
+        int owner_id FK "作成者ID"
+        string name "プレイリスト名"
+        string description "説明"
+        string cover_url "カバー画像URL"
+        boolean is_public "公開"
+        boolean is_collaborative "共同編集"
+        int follower_count "フォロワー数"
+        datetime created_at "作成日時"
+    }
+
+    PLAYLIST_TRACK {
+        int id PK "ID"
+        int playlist_id FK "プレイリストID"
+        int track_id FK "楽曲ID"
+        int added_by FK "追加者ID"
+        int position "並び順"
+        datetime added_at "追加日時"
+    }
+
+    PLAY_HISTORY {
+        int id PK "再生履歴ID"
+        int user_id FK "ユーザーID"
+        int track_id FK "楽曲ID"
+        int duration_played_ms "再生時間(ms)"
+        string context_type "再生元種別"
+        int context_id "再生元ID"
+        datetime played_at "再生日時"
+    }
+
+    SAVED_TRACK {
+        int id PK "ID"
+        int user_id FK "ユーザーID"
+        int track_id FK "楽曲ID"
+        datetime saved_at "保存日時"
+    }
+
+    SAVED_ALBUM {
+        int id PK "ID"
+        int user_id FK "ユーザーID"
+        int album_id FK "アルバムID"
+        datetime saved_at "保存日時"
+    }
+
+    FOLLOW_ARTIST {
+        int id PK "ID"
+        int user_id FK "ユーザーID"
+        int artist_id FK "アーティストID"
+        datetime followed_at "フォロー日時"
+    }
+
+    FOLLOW_PLAYLIST {
+        int id PK "ID"
+        int user_id FK "ユーザーID"
+        int playlist_id FK "プレイリストID"
+        datetime followed_at "フォロー日時"
+    }
+
+    GENRE {
+        int id PK "ジャンルID"
+        string name "ジャンル名"
+    }
+
+    ARTIST_GENRE {
+        int id PK "ID"
+        int artist_id FK "アーティストID"
+        int genre_id FK "ジャンルID"
+    }
+
+    USER ||--o| SUBSCRIPTION_PLAN : "契約する"
+    ARTIST ||--o{ ALBUM : "リリースする"
+    ALBUM ||--|{ TRACK : "収録する"
+    TRACK ||--o{ TRACK_ARTIST : "参加する"
+    ARTIST ||--o{ TRACK_ARTIST : "演奏する"
+    USER ||--o{ PLAYLIST : "作成する"
+    PLAYLIST ||--o{ PLAYLIST_TRACK : "含む"
+    TRACK ||--o{ PLAYLIST_TRACK : "追加される"
+    USER ||--o{ PLAY_HISTORY : "再生する"
+    TRACK ||--o{ PLAY_HISTORY : "再生される"
+    USER ||--o{ SAVED_TRACK : "お気に入り"
+    TRACK ||--o{ SAVED_TRACK : "保存される"
+    USER ||--o{ SAVED_ALBUM : "保存する"
+    ALBUM ||--o{ SAVED_ALBUM : "保存される"
+    USER ||--o{ FOLLOW_ARTIST : "フォローする"
+    ARTIST ||--o{ FOLLOW_ARTIST : "フォローされる"
+    USER ||--o{ FOLLOW_PLAYLIST : "フォローする"
+    PLAYLIST ||--o{ FOLLOW_PLAYLIST : "フォローされる"
+    ARTIST ||--o{ ARTIST_GENRE : "属する"
+    GENRE ||--o{ ARTIST_GENRE : "分類する"

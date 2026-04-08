@@ -1,0 +1,219 @@
+erDiagram
+    USER {
+        int id PK "ユーザーID"
+        string email "メールアドレス"
+        string first_name "名"
+        string last_name "姓"
+        string phone "電話番号"
+        string avatar_url "プロフィール画像"
+        text bio "自己紹介"
+        string id_verification "本人確認状態"
+        boolean is_superhost "スーパーホスト"
+        string preferred_language "言語"
+        string preferred_currency "通貨"
+        datetime created_at "登録日時"
+    }
+
+    PROPERTY {
+        int id PK "物件ID"
+        int host_id FK "ホストID"
+        int property_type_id FK "物件タイプID"
+        string title "タイトル"
+        text description "説明"
+        string address "住所"
+        string city "市区町村"
+        string state "都道府県"
+        string country "国"
+        string zip_code "郵便番号"
+        decimal latitude "緯度"
+        decimal longitude "経度"
+        int max_guests "最大宿泊人数"
+        int bedrooms "寝室数"
+        int beds "ベッド数"
+        int bathrooms "バスルーム数"
+        decimal price_per_night "1泊料金"
+        decimal cleaning_fee "清掃料"
+        decimal service_fee_rate "サービス料率"
+        string cancellation_policy "キャンセルポリシー"
+        int min_nights "最低泊数"
+        int max_nights "最大泊数"
+        string check_in_time "チェックイン"
+        string check_out_time "チェックアウト"
+        decimal rating "総合評価"
+        int review_count "レビュー数"
+        boolean is_active "公開中"
+        datetime created_at "登録日時"
+    }
+
+    PROPERTY_TYPE {
+        int id PK "タイプID"
+        string name "タイプ名"
+        string description "説明"
+    }
+
+    PROPERTY_PHOTO {
+        int id PK "写真ID"
+        int property_id FK "物件ID"
+        string url "画像URL"
+        string caption "キャプション"
+        int sort_order "表示順"
+        boolean is_cover "カバー写真"
+    }
+
+    AMENITY {
+        int id PK "設備ID"
+        string name "設備名"
+        string category "カテゴリ"
+        string icon "アイコン"
+    }
+
+    PROPERTY_AMENITY {
+        int id PK "ID"
+        int property_id FK "物件ID"
+        int amenity_id FK "設備ID"
+    }
+
+    HOUSE_RULE {
+        int id PK "ルールID"
+        int property_id FK "物件ID"
+        string rule "ルール内容"
+    }
+
+    AVAILABILITY {
+        int id PK "空き状況ID"
+        int property_id FK "物件ID"
+        date date "日付"
+        boolean is_available "予約可"
+        decimal custom_price "カスタム料金"
+        int min_nights "最低泊数"
+    }
+
+    RESERVATION {
+        int id PK "予約ID"
+        int property_id FK "物件ID"
+        int guest_id FK "ゲストID"
+        date check_in "チェックイン日"
+        date check_out "チェックアウト日"
+        int guests "宿泊人数"
+        decimal nightly_rate "1泊料金"
+        decimal cleaning_fee "清掃料"
+        decimal service_fee "サービス料"
+        decimal taxes "税金"
+        decimal total "合計金額"
+        string status "予約状態"
+        text guest_message "ゲストメッセージ"
+        datetime created_at "予約日時"
+        datetime confirmed_at "承認日時"
+        datetime cancelled_at "キャンセル日時"
+    }
+
+    PAYMENT {
+        int id PK "決済ID"
+        int reservation_id FK "予約ID"
+        string method "決済方法"
+        string status "決済状態"
+        decimal amount "金額"
+        string currency "通貨"
+        string transaction_id "取引ID"
+        datetime paid_at "決済日時"
+    }
+
+    PAYOUT {
+        int id PK "支払ID"
+        int host_id FK "ホストID"
+        int reservation_id FK "予約ID"
+        decimal amount "金額"
+        string currency "通貨"
+        string status "状態"
+        string payout_method "支払方法"
+        datetime scheduled_at "支払予定日"
+        datetime paid_at "支払日時"
+    }
+
+    REVIEW {
+        int id PK "レビューID"
+        int reservation_id FK "予約ID"
+        int reviewer_id FK "レビュアーID"
+        int reviewee_id FK "レビュー対象ID"
+        string review_type "種別"
+        int rating_overall "総合評価"
+        int rating_cleanliness "清潔さ"
+        int rating_accuracy "正確さ"
+        int rating_communication "コミュニケーション"
+        int rating_location "立地"
+        int rating_checkin "チェックイン"
+        int rating_value "コスパ"
+        text comment "コメント"
+        text private_feedback "非公開フィードバック"
+        datetime created_at "投稿日時"
+    }
+
+    MESSAGE_THREAD {
+        int id PK "スレッドID"
+        int property_id FK "物件ID"
+        int reservation_id FK "予約ID"
+        int guest_id FK "ゲストID"
+        int host_id FK "ホストID"
+        datetime created_at "作成日時"
+        datetime updated_at "更新日時"
+    }
+
+    MESSAGE {
+        int id PK "メッセージID"
+        int thread_id FK "スレッドID"
+        int sender_id FK "送信者ID"
+        text content "本文"
+        boolean is_read "既読"
+        datetime sent_at "送信日時"
+    }
+
+    WISHLIST {
+        int id PK "ウィッシュリストID"
+        int user_id FK "ユーザーID"
+        string name "リスト名"
+        boolean is_private "非公開"
+        datetime created_at "作成日時"
+    }
+
+    WISHLIST_ITEM {
+        int id PK "ID"
+        int wishlist_id FK "ウィッシュリストID"
+        int property_id FK "物件ID"
+        datetime added_at "追加日時"
+    }
+
+    REPORT {
+        int id PK "通報ID"
+        int reporter_id FK "通報者ID"
+        int property_id FK "物件ID"
+        int reservation_id FK "予約ID"
+        string reason "通報理由"
+        text description "詳細"
+        string status "対応状態"
+        datetime created_at "通報日時"
+    }
+
+    USER ||--o{ PROPERTY : "ホスティングする"
+    PROPERTY_TYPE ||--o{ PROPERTY : "分類する"
+    PROPERTY ||--o{ PROPERTY_PHOTO : "掲載する"
+    PROPERTY ||--o{ PROPERTY_AMENITY : "備える"
+    AMENITY ||--o{ PROPERTY_AMENITY : "提供される"
+    PROPERTY ||--o{ HOUSE_RULE : "定める"
+    PROPERTY ||--o{ AVAILABILITY : "空き管理"
+    USER ||--o{ RESERVATION : "予約する"
+    PROPERTY ||--o{ RESERVATION : "予約される"
+    RESERVATION ||--|| PAYMENT : "決済する"
+    USER ||--o{ PAYOUT : "受け取る"
+    RESERVATION ||--|| PAYOUT : "支払われる"
+    RESERVATION ||--o{ REVIEW : "レビューされる"
+    USER ||--o{ REVIEW : "レビューする"
+    USER ||--o{ REVIEW : "レビューされる"
+    PROPERTY ||--o{ MESSAGE_THREAD : "問い合わせ"
+    RESERVATION ||--o| MESSAGE_THREAD : "やり取り"
+    USER ||--o{ MESSAGE_THREAD : "参加する"
+    MESSAGE_THREAD ||--|{ MESSAGE : "含む"
+    USER ||--o{ MESSAGE : "送信する"
+    USER ||--o{ WISHLIST : "作成する"
+    WISHLIST ||--o{ WISHLIST_ITEM : "含む"
+    PROPERTY ||--o{ WISHLIST_ITEM : "保存される"
+    USER ||--o{ REPORT : "通報する"
